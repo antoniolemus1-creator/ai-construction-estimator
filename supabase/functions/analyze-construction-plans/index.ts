@@ -254,6 +254,8 @@ CRITICAL INSTRUCTIONS:
 
 ${analysisConfig?.takeoffItems?.length > 0 ? `Also extract these specific items: ${analysisConfig.takeoffItems.join(', ')}` : ''}
 
+IMPORTANT: For each item, provide approximate pixel coordinates (x, y) relative to the image dimensions (assume 1000x1000 canvas). This allows highlighting items on the drawing.
+
 Return JSON with this structure:
 {
   "wall_types_legend": [
@@ -276,7 +278,8 @@ Return JSON with this structure:
       "room_name": "string",
       "from_to": "string (e.g., 'Grid A to Grid B')",
       "notes": "string",
-      "confidence": "number 0-100"
+      "confidence": "number 0-100",
+      "coordinates": {"start_x": "number 0-1000", "start_y": "number 0-1000", "end_x": "number 0-1000", "end_y": "number 0-1000"}
     }
   ],
   "wall_type_totals": [
@@ -294,9 +297,9 @@ Return JSON with this structure:
       "affects_wall_types": ["array of wall type codes this affects"]
     }
   ],
-  "ceilings": [{"area_sqft": "number", "room_name": "string", "ceiling_type": "string", "confidence": "number"}],
-  "doors": [{"count": "number", "room_name": "string", "type": "string", "size": "string"}],
-  "windows": [{"count": "number", "room_name": "string", "type": "string", "size": "string"}],
+  "ceilings": [{"area_sqft": "number", "room_name": "string", "ceiling_type": "string", "confidence": "number", "coordinates": {"x": "number", "y": "number", "width": "number", "height": "number"}}],
+  "doors": [{"count": "number", "room_name": "string", "type": "string", "size": "string", "coordinates": {"x": "number 0-1000", "y": "number 0-1000"}}],
+  "windows": [{"count": "number", "room_name": "string", "type": "string", "size": "string", "coordinates": {"x": "number 0-1000", "y": "number 0-1000"}}],
   "drawing_info": {
     "sheet_number": "string",
     "scale": "string",
@@ -407,7 +410,7 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
         });
       }
 
-      // Store individual wall segments with type code
+      // Store individual wall segments with type code and coordinates
       for (const wall of parsed.walls || []) {
         items.push({
           plan_id: planId,
@@ -415,7 +418,16 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
           item_type: 'wall',
           quantity: wall.length_ft,
           unit: 'LF',
-          dimensions: JSON.stringify({ length_ft: wall.length_ft, from_to: wall.from_to }),
+          dimensions: JSON.stringify({
+            length_ft: wall.length_ft,
+            from_to: wall.from_to,
+            coordinates: wall.coordinates ? {
+              points: [
+                { x: wall.coordinates.start_x, y: wall.coordinates.start_y },
+                { x: wall.coordinates.end_x, y: wall.coordinates.end_y }
+              ]
+            } : null
+          }),
           confidence_score: wall.confidence,
           room_name: wall.room_name,
           wall_type: wall.wall_type_code,
@@ -471,7 +483,10 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
           confidence_score: ceiling.confidence,
           room_name: ceiling.room_name,
           ceiling_type: ceiling.ceiling_type,
-          ceiling_area_sqft: ceiling.area_sqft
+          ceiling_area_sqft: ceiling.area_sqft,
+          dimensions: ceiling.coordinates ? JSON.stringify({
+            coordinates: { x: ceiling.coordinates.x, y: ceiling.coordinates.y, width: ceiling.coordinates.width, height: ceiling.coordinates.height }
+          }) : null
         });
       }
 
@@ -483,7 +498,11 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
           quantity: door.count || 1,
           unit: 'EA',
           room_name: door.room_name,
-          door_material: door.type
+          door_material: door.type,
+          door_size: door.size,
+          dimensions: door.coordinates ? JSON.stringify({
+            coordinates: { x: door.coordinates.x, y: door.coordinates.y }
+          }) : null
         });
       }
 
@@ -495,7 +514,11 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
           quantity: window.count || 1,
           unit: 'EA',
           room_name: window.room_name,
-          window_material: window.type
+          window_material: window.type,
+          window_size: window.size,
+          dimensions: window.coordinates ? JSON.stringify({
+            coordinates: { x: window.coordinates.x, y: window.coordinates.y }
+          }) : null
         });
       }
 

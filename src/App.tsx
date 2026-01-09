@@ -57,6 +57,7 @@ import MyLicensesPage from "./pages/MyLicensesPage";
 
 
 import PlanRevisionPage from "./pages/PlanRevisionPage";
+import PlanViewerPage from "./pages/PlanViewerPage";
 import NotFound from "./pages/NotFound";
 
 
@@ -113,6 +114,8 @@ const App = () => (
                   <Route path="/verify-license" element={<VerifyLicensePage />} />
                   <Route path="/my-licenses" element={<MyLicensesPage />} />
                   <Route path="/plan-revisions" element={<PlanRevisionPage />} />
+                  <Route path="/plan-viewer" element={<PlanViewerPage />} />
+                  <Route path="/plan-viewer/:planId" element={<PlanViewerPage />} />
                   <Route path="/screen-recording" element={<ScreenRecordingPage />} />
                   <Route path="/video-annotation/:recordingId" element={<VideoAnnotationPage />} />
 

@@ -204,16 +204,25 @@ export default function AppLayout() {
                   <FileCheck className="w-4 h-4 mr-2" />
                   Change Orders
                 </Button>
-                <Button 
-                  onClick={() => window.location.href = '/ai-plan-analysis'} 
-                  variant="outline" 
+                <Button
+                  onClick={() => window.location.href = '/ai-plan-analysis'}
+                  variant="outline"
                   size="sm"
                   className="border-purple-500 text-purple-500 hover:bg-purple-500/10"
                 >
                   <FileText className="w-4 h-4 mr-2" />
                   AI Plan Analysis
                 </Button>
-                <Button 
+                <Button
+                  onClick={() => window.location.href = '/plan-viewer'}
+                  variant="outline"
+                  size="sm"
+                  className="border-cyan-500 text-cyan-500 hover:bg-cyan-500/10"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Plan Viewer
+                </Button>
+                <Button
                   onClick={() => window.location.href = '/extraction-training'} 
                   variant="outline" 
                   size="sm"

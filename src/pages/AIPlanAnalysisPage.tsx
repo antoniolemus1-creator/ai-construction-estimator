@@ -214,7 +214,8 @@ export default function AIPlanAnalysisPage() {
       const uploadedPlans = [];
 
       for (const file of pendingFiles) {
-        const fileName = `${userId}/${Date.now()}_${file.name}`;
+        // Store at root level (no user folder) to match bucket structure
+        const fileName = `${Date.now()}_${file.name}`;
         const { error: uploadError } = await supabase.storage
           .from('construction-plans')
           .upload(fileName, file);

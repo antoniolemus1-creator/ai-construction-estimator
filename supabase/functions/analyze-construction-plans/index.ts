@@ -367,27 +367,28 @@ Return JSON:
 {
   "sheet_type": "string",
   "drawing_info": {"sheet_number": "string", "scale": "string", "title": "string", "floor_level": "string", "phase": "string or null"},
-  "walls": [{"wall_type_code": "string", "length_ft": "number", "height_ft": "number or null", "room_name": "string", "floor_level": "string", "area_type": "string", "is_existing": "boolean", "is_exterior": "boolean", "notes": "string", "coordinates": {"start_x": "number", "start_y": "number", "end_x": "number", "end_y": "number"}}],
-  "wall_types_legend": [{"type_code": "string", "description": "string", "stud_size": "string", "stud_gauge": "string", "stud_spacing": "string", "max_height": "string", "drywall_layers_each_side": "number", "drywall_type": "string", "sheathing": "string", "fire_rating": "string", "ul_number": "string", "stc_rating": "number", "insulation": "string", "insulation_r_value": "string"}],
+  "walls": [{"wall_type_code": "string", "length_ft": "number", "height_ft": "number or null", "room_name": "string", "floor_level": "string", "area_type": "string", "is_existing": "boolean", "is_exterior": "boolean", "notes": "string", "confidence": "number 0-100", "coordinates": {"start_x": "number 0-100", "start_y": "number 0-100", "end_x": "number 0-100", "end_y": "number 0-100"}}],
+  "wall_types_legend": [{"type_code": "string", "description": "string", "stud_size": "string", "stud_gauge": "string", "stud_spacing": "string", "max_height": "string", "drywall_layers_each_side": "number", "drywall_type": "string", "sheathing": "string", "fire_rating": "string", "ul_number": "string", "stc_rating": "number", "insulation": "string", "insulation_r_value": "string", "confidence": "number 0-100"}],
   "wall_type_totals": [{"type_code": "string", "total_linear_ft": "number", "wall_count": "number", "floor_level": "string"}],
-  "rooms": [{"room_name": "string", "room_number": "string", "area_sqft": "number", "perimeter_lf": "number", "ceiling_height": "string", "ceiling_type": "string", "floor_level": "string", "unit_type": "string", "area_type": "string"}],
-  "ceilings": [{"room_name": "string", "room_number": "string", "area_sqft": "number", "perimeter_lf": "number", "ceiling_height": "string", "ceiling_category": "string", "material": "string", "grid_type": "string", "tile_size": "string", "fire_rating": "string", "ul_number": "string", "stc_rating": "number", "nrc_rating": "number", "insulation_above": "boolean", "insulation_type": "string", "insulation_r_value": "string", "seismic_bracing_required": "boolean", "floor_level": "string", "unit_type": "string", "area_type": "string"}],
-  "insulation": [{"location": "string", "type": "string", "r_value": "string", "thickness": "string", "purpose": "string (thermal|sound|fire)", "wall_types": ["string"], "notes": "string"}],
-  "doors": [{"mark": "string", "width": "string", "height": "string", "thickness": "string", "door_type": "string (hollow_metal|wood|prehung|fire_rated)", "material": "string", "wood_species": "string", "wood_veneer": "string", "style": "string (flush|panel|louver)", "fire_rating": "string", "smoke_rating": "string", "stc_rating": "number", "frame_type": "string", "frame_material": "string", "frame_gauge": "string", "hardware_set": "string", "room_name": "string", "floor_level": "string", "unit_type": "string", "area_type": "string", "quantity": "number"}],
-  "door_hardware_sets": [{"set_number": "string", "lockset_type": "string", "lockset_function": "string", "manufacturer": "string", "finish": "string", "hinge_type": "string", "hinge_qty": "number", "closer_type": "string", "stop_type": "string", "threshold": "string", "weatherstrip": "boolean", "ada_compliant": "boolean"}],
-  "millwork": [{"item_type": "string (base_trim|door_casing|window_casing|crown|chair_rail|paneling)", "profile": "string", "size": "string", "material": "string", "finish": "string", "linear_ft": "number", "area_sqft": "number", "room_name": "string", "floor_level": "string", "unit_type": "string"}],
-  "casework": [{"item_type": "string (kitchen_base|kitchen_wall|kitchen_tall|vanity|other)", "size": "string", "door_style": "string", "material": "string", "finish": "string", "countertop": "string", "hardware": "string", "quantity": "number", "room_name": "string", "floor_level": "string", "unit_type": "string"}],
-  "windows": [{"mark": "string", "width": "string", "height": "string", "type": "string (fixed|casement|double_hung|slider|awning)", "material": "string", "manufacturer": "string", "glass_type": "string", "frame_color": "string", "multi_lite": "boolean", "lite_config": "string", "u_value": "string", "shgc": "string", "room_name": "string", "floor_level": "string", "unit_type": "string", "elevation": "string", "quantity": "number"}],
-  "bathroom_partitions": [{"type": "string (floor_mounted|ceiling_hung|floor_to_ceiling)", "material": "string", "core": "string", "manufacturer": "string", "color": "string", "configuration": "string", "stall_count": "number", "urinal_screen_count": "number", "room_name": "string", "floor_level": "string"}],
-  "bathroom_accessories": [{"item_type": "string", "manufacturer": "string", "model": "string", "material": "string", "finish": "string", "ada_compliant": "boolean", "quantity": "number", "room_name": "string", "floor_level": "string"}],
-  "structural_hardware": [{"item": "string", "manufacturer": "string", "quantity": "number", "location": "string", "is_seismic": "boolean", "floor_level": "string"}],
+  "rooms": [{"room_name": "string", "room_number": "string", "area_sqft": "number", "perimeter_lf": "number", "ceiling_height": "string", "ceiling_type": "string", "floor_level": "string", "unit_type": "string", "area_type": "string", "confidence": "number 0-100"}],
+  "ceilings": [{"room_name": "string", "room_number": "string", "area_sqft": "number", "perimeter_lf": "number", "ceiling_height": "string", "ceiling_category": "string", "material": "string", "grid_type": "string", "tile_size": "string", "fire_rating": "string", "ul_number": "string", "stc_rating": "number", "nrc_rating": "number", "insulation_above": "boolean", "insulation_type": "string", "insulation_r_value": "string", "seismic_bracing_required": "boolean", "floor_level": "string", "unit_type": "string", "area_type": "string", "confidence": "number 0-100"}],
+  "insulation": [{"location": "string", "type": "string", "r_value": "string", "thickness": "string", "purpose": "string (thermal|sound|fire)", "wall_types": ["string"], "notes": "string", "confidence": "number 0-100"}],
+  "doors": [{"mark": "string", "width": "string", "height": "string", "thickness": "string", "door_type": "string (hollow_metal|wood|prehung|fire_rated)", "material": "string", "wood_species": "string", "wood_veneer": "string", "style": "string (flush|panel|louver)", "fire_rating": "string", "smoke_rating": "string", "stc_rating": "number", "frame_type": "string", "frame_material": "string", "frame_gauge": "string", "hardware_set": "string", "room_name": "string", "floor_level": "string", "unit_type": "string", "area_type": "string", "quantity": "number", "confidence": "number 0-100", "coordinates": {"x": "number 0-100", "y": "number 0-100"}}],
+  "door_hardware_sets": [{"set_number": "string", "lockset_type": "string", "lockset_function": "string", "manufacturer": "string", "finish": "string", "hinge_type": "string", "hinge_qty": "number", "closer_type": "string", "stop_type": "string", "threshold": "string", "weatherstrip": "boolean", "ada_compliant": "boolean", "confidence": "number 0-100"}],
+  "millwork": [{"item_type": "string (base_trim|door_casing|window_casing|crown|chair_rail|paneling)", "profile": "string", "size": "string", "material": "string", "finish": "string", "linear_ft": "number", "area_sqft": "number", "room_name": "string", "floor_level": "string", "unit_type": "string", "confidence": "number 0-100"}],
+  "casework": [{"item_type": "string (kitchen_base|kitchen_wall|kitchen_tall|vanity|other)", "size": "string", "door_style": "string", "material": "string", "finish": "string", "countertop": "string", "hardware": "string", "quantity": "number", "room_name": "string", "floor_level": "string", "unit_type": "string", "confidence": "number 0-100"}],
+  "windows": [{"mark": "string", "width": "string", "height": "string", "type": "string (fixed|casement|double_hung|slider|awning)", "material": "string", "manufacturer": "string", "glass_type": "string", "frame_color": "string", "multi_lite": "boolean", "lite_config": "string", "u_value": "string", "shgc": "string", "room_name": "string", "floor_level": "string", "unit_type": "string", "elevation": "string", "quantity": "number", "confidence": "number 0-100", "coordinates": {"x": "number 0-100", "y": "number 0-100"}}],
+  "bathroom_partitions": [{"type": "string (floor_mounted|ceiling_hung|floor_to_ceiling)", "material": "string", "core": "string", "manufacturer": "string", "color": "string", "configuration": "string", "stall_count": "number", "urinal_screen_count": "number", "room_name": "string", "floor_level": "string", "confidence": "number 0-100"}],
+  "bathroom_accessories": [{"item_type": "string", "manufacturer": "string", "model": "string", "material": "string", "finish": "string", "ada_compliant": "boolean", "quantity": "number", "room_name": "string", "floor_level": "string", "confidence": "number 0-100"}],
+  "structural_hardware": [{"item": "string", "manufacturer": "string", "quantity": "number", "location": "string", "is_seismic": "boolean", "floor_level": "string", "confidence": "number 0-100"}],
   "seismic_requirements": [{"requirement_type": "string", "description": "string", "applies_to": "string", "seismic_category": "string"}],
-  "beams_headers": [{"size": "string", "length_ft": "number", "location": "string", "type": "string", "floor_level": "string"}],
-  "soffits": [{"width_inches": "number", "depth_inches": "number", "length_ft": "number", "location": "string", "floor_level": "string"}],
+  "beams_headers": [{"size": "string", "length_ft": "number", "location": "string", "type": "string", "floor_level": "string", "confidence": "number 0-100"}],
+  "soffits": [{"width_inches": "number", "depth_inches": "number", "length_ft": "number", "location": "string", "floor_level": "string", "confidence": "number 0-100"}],
   "deck_heights": [{"floor_level": "string", "height_ft_in": "string", "area": "string"}],
   "general_notes": [{"category": "string", "note": "string", "applies_to": "string"}],
   "ul_assemblies": [{"ul_number": "string", "fire_rating": "string", "description": "string", "assembly_type": "string"}],
-  "clarifications_needed": [{"question_type": "string", "question": "string", "context": "string", "affects": "string"}]
+  "clarifications_needed": [{"question_type": "string", "question": "string", "context": "string", "affects": "string"}],
+  "confidence_summary": {"overall": "number 0-100", "by_category": {"walls": "number", "ceilings": "number", "doors": "number", "windows": "number", "millwork": "number", "casework": "number"}}
 }`;
       }
 
@@ -403,9 +404,23 @@ Return JSON:
           messages: [
             {
               role: 'system',
-              content: `You are an expert commercial construction estimator with 25+ years experience in MULTI-FAMILY construction. You perform comprehensive takeoffs for multiple scopes:
+              content: `You are an expert commercial construction estimator with 25+ years experience in MULTI-FAMILY construction. You perform comprehensive takeoffs for multiple scopes.
 
-SCOPES YOU EXTRACT:
+=== SHEET TYPE IDENTIFICATION ===
+Identify sheet type from sheet number prefix:
+- A0.xx: Cover, Index - Extract project name, sheet list
+- A1.xx: Floor Plans - Walls, doors, windows, room names/numbers, dimensions
+- A2.xx: Exterior Elevations - Window locations, materials
+- A3.xx: Building Sections - Heights, floor-to-floor dimensions
+- A4.xx: Wall Sections - Wall types, assembly details
+- A5.xx: Details - Material specs, dimensions
+- A6.xx: Schedules - Door/Window/Finish schedules
+- A7.xx: Reflected Ceiling Plans - Ceiling types, heights, areas
+- A8.xx: Interior Elevations - Cabinets, trim, millwork
+- ID1-4.xx: Interior Design plans
+- S1-3.xx: Structural plans
+
+=== SCOPES YOU EXTRACT ===
 1. FRAMING & DRYWALL: Walls, studs, sheathing, fire ratings
 2. CEILINGS: Drywall, ACT, specialty - with SF, perimeter, insulation, seismic
 3. THERMAL/SOUND INSULATION: R-values, STC, locations
@@ -415,12 +430,30 @@ SCOPES YOU EXTRACT:
 7. WINDOWS: Types, materials, sizes, multi-lite configurations
 8. BATHROOM ACCESSORIES & PARTITIONS: Brands, materials, core types
 
-SHEET TYPES YOU READ:
-- Floor Plans, ID Plans, RCP, Door Schedules, Window Schedules
-- Finish Schedules, Hardware Schedules, Cabinet Elevations
-- Partition Schedules, Structural, Specifications
+=== CONFIDENCE SCORING (0-100) ===
+Assign a confidence score to EVERY extracted item:
+- 90-100 (High): Item clearly labeled with dimensions, appears in schedule with complete info, consistent across sheets
+- 70-89 (Good): Item visible but needs interpretation, partial info in schedule, dimensions can be scaled
+- 50-69 (Moderate): Item implied but not explicit, cross-reference needed, standard assumptions applied
+- 30-49 (Low): Significant assumptions made, info incomplete/unclear, needs verification
+- 0-29 (Very Low): Educated guess only, contradictory info, recommend RFI
 
-CRITICAL RULES:
+=== COORDINATE EXTRACTION (CRITICAL) ===
+For EVERY wall, door, and window, you MUST extract coordinates relative to the drawing:
+- Walls: start_x, start_y, end_x, end_y (0-100 scale where 0,0 is top-left)
+- Doors/Windows: x, y center position (0-100 scale)
+These coordinates are used for visual markup - extraction without coordinates is incomplete.
+
+=== WALL TYPE NOTATION ===
+Parse wall type legends to extract:
+- Stud size (e.g., 3-5/8")
+- Stud spacing (e.g., 16" O.C.)
+- Drywall layers each side
+- STC rating
+- Fire rating
+- UL number
+
+=== CRITICAL RULES ===
 1. ALWAYS separate by: Floor Level, Phase, Area/Zone, Unit Type
 2. Extract from ALL sheet types - don't skip any
 3. Calculate room SF and perimeter from dimensions
@@ -430,10 +463,17 @@ CRITICAL RULES:
 7. For WINDOWS: Note if large windows are mulled/broken into sections
 8. For CASEWORK: Capture style, material, finish, hardware
 9. For BATHROOM PARTITIONS: Get material/core (phenolic, solid plastic, etc.)
+10. NEVER guess without flagging low confidence
+11. Missing coordinates = incomplete extraction
 
-Data sources for each scope vary - check schedules, plans, AND specs.
+=== COMMON ERRORS TO AVOID ===
+1. Missing items: Check ALL sheet areas
+2. Double counting: Same item on multiple sheets
+3. Wrong units: LF vs SF vs EA
+4. Scale errors: Verify scale matches dimensions
+5. Demo vs new: Don't count items to be demolished
 
-Be thorough. Missing items cost money. Always respond with valid JSON.`
+Be thorough. Missing items cost money. Always respond with valid JSON with confidence scores.`
             },
             {
               role: 'user',
@@ -534,7 +574,7 @@ Be thorough. Missing items cost money. Always respond with valid JSON.`
         });
       }
 
-      // Store individual wall segments with type code, coordinates, and new fields
+      // Store individual wall segments with type code, coordinates, confidence, and new fields
       for (const wall of parsed.walls || []) {
         // Determine wall classification
         let wallClassification = 'interior';
@@ -547,6 +587,7 @@ Be thorough. Missing items cost money. Always respond with valid JSON.`
           item_type: 'wall',
           quantity: wall.length_ft,
           unit: 'LF',
+          confidence_score: wall.confidence || 50,
           dimensions: JSON.stringify({
             length_ft: wall.length_ft,
             height_ft: wall.height_ft,
@@ -563,7 +604,7 @@ Be thorough. Missing items cost money. Always respond with valid JSON.`
           wall_height: wall.height_ft,
           linear_footage: wall.length_ft,
           wall_classification: wallClassification,
-          notes: `${wall.is_existing ? '[EXISTING] ' : ''}${wall.is_exterior ? '[EXTERIOR] ' : ''}${wall.notes || ''}`
+          notes: `[Confidence: ${wall.confidence || 50}%] ${wall.is_existing ? '[EXISTING] ' : ''}${wall.is_exterior ? '[EXTERIOR] ' : ''}${wall.notes || ''}`
         });
       }
 
@@ -618,7 +659,7 @@ Be thorough. Missing items cost money. Always respond with valid JSON.`
         });
       }
 
-      // Store detailed ceiling data with all new fields
+      // Store detailed ceiling data with confidence and all new fields
       for (const ceiling of parsed.ceilings || []) {
         items.push({
           plan_id: planId,
@@ -627,6 +668,7 @@ Be thorough. Missing items cost money. Always respond with valid JSON.`
           description: `${ceiling.ceiling_category || 'ceiling'} - ${ceiling.material || ceiling.ceiling_type_code || 'TBD'}`,
           quantity: ceiling.area_sqft,
           unit: 'SF',
+          confidence_score: ceiling.confidence || 50,
           room_name: ceiling.room_name,
           room_number: ceiling.room_number,
           ceiling_type: ceiling.ceiling_category || 'drywall',
@@ -640,7 +682,7 @@ Be thorough. Missing items cost money. Always respond with valid JSON.`
             tile_size: ceiling.tile_size,
             layers: ceiling.layers
           }),
-          notes: `Category: ${ceiling.ceiling_category || 'N/A'} | Material: ${ceiling.material || 'TBD'} | Perimeter: ${ceiling.perimeter_lf || 0} LF | Fire: ${ceiling.fire_rating || 'N/A'} | UL: ${ceiling.ul_number || 'N/A'} | STC: ${ceiling.stc_rating || 'N/A'} | NRC: ${ceiling.nrc_rating || 'N/A'} | Insulation: ${ceiling.insulation_above ? `${ceiling.insulation_type || 'Yes'} R-${ceiling.insulation_r_value || 'TBD'}` : 'None'} | Seismic: ${ceiling.seismic_bracing_required ? `Yes (${ceiling.seismic_category || 'TBD'})` : 'No'}`
+          notes: `[Confidence: ${ceiling.confidence || 50}%] Category: ${ceiling.ceiling_category || 'N/A'} | Material: ${ceiling.material || 'TBD'} | Perimeter: ${ceiling.perimeter_lf || 0} LF | Fire: ${ceiling.fire_rating || 'N/A'} | UL: ${ceiling.ul_number || 'N/A'} | STC: ${ceiling.stc_rating || 'N/A'} | NRC: ${ceiling.nrc_rating || 'N/A'} | Insulation: ${ceiling.insulation_above ? `${ceiling.insulation_type || 'Yes'} R-${ceiling.insulation_r_value || 'TBD'}` : 'None'} | Seismic: ${ceiling.seismic_bracing_required ? `Yes (${ceiling.seismic_category || 'TBD'})` : 'No'}`
         });
       }
 
@@ -659,7 +701,7 @@ Be thorough. Missing items cost money. Always respond with valid JSON.`
         });
       }
 
-      // Store detailed door information
+      // Store detailed door information with confidence and coordinates
       for (const door of parsed.doors || []) {
         items.push({
           plan_id: planId,
@@ -668,6 +710,7 @@ Be thorough. Missing items cost money. Always respond with valid JSON.`
           description: `${door.mark || ''} - ${door.width || ''}x${door.height || ''} ${door.style || ''} ${door.material || ''}`,
           quantity: door.quantity || 1,
           unit: 'EA',
+          confidence_score: door.confidence || 50,
           room_name: door.room_name,
           door_material: door.material,
           door_type: door.door_type,
@@ -682,9 +725,10 @@ Be thorough. Missing items cost money. Always respond with valid JSON.`
             frame_type: door.frame_type,
             frame_material: door.frame_material,
             frame_gauge: door.frame_gauge,
-            hardware_set: door.hardware_set
+            hardware_set: door.hardware_set,
+            coordinates: door.coordinates ? { x: door.coordinates.x, y: door.coordinates.y } : null
           }),
-          notes: `Mark: ${door.mark || 'N/A'} | Type: ${door.door_type || 'N/A'} | Material: ${door.material || 'TBD'} | Species: ${door.wood_species || 'N/A'} | Veneer: ${door.wood_veneer || 'N/A'} | Style: ${door.style || 'N/A'} | Fire: ${door.fire_rating || 'N/A'} | Frame: ${door.frame_type || 'N/A'} ${door.frame_gauge || ''} | HW Set: ${door.hardware_set || 'N/A'} | Floor: ${door.floor_level || 'N/A'} | Unit: ${door.unit_type || 'N/A'} | Area: ${door.area_type || 'N/A'}`
+          notes: `[Confidence: ${door.confidence || 50}%] Mark: ${door.mark || 'N/A'} | Type: ${door.door_type || 'N/A'} | Material: ${door.material || 'TBD'} | Species: ${door.wood_species || 'N/A'} | Veneer: ${door.wood_veneer || 'N/A'} | Style: ${door.style || 'N/A'} | Fire: ${door.fire_rating || 'N/A'} | Frame: ${door.frame_type || 'N/A'} ${door.frame_gauge || ''} | HW Set: ${door.hardware_set || 'N/A'} | Floor: ${door.floor_level || 'N/A'} | Unit: ${door.unit_type || 'N/A'} | Area: ${door.area_type || 'N/A'}`
         });
       }
 
@@ -715,7 +759,7 @@ Be thorough. Missing items cost money. Always respond with valid JSON.`
         });
       }
 
-      // Store detailed window information
+      // Store detailed window information with confidence and coordinates
       for (const window of parsed.windows || []) {
         items.push({
           plan_id: planId,
@@ -724,6 +768,7 @@ Be thorough. Missing items cost money. Always respond with valid JSON.`
           description: `${window.mark || ''} - ${window.width || ''}x${window.height || ''} ${window.type || ''} ${window.material || ''}`,
           quantity: window.quantity || 1,
           unit: 'EA',
+          confidence_score: window.confidence || 50,
           room_name: window.room_name,
           window_material: window.material,
           window_size: `${window.width || ''}x${window.height || ''}`,
@@ -738,9 +783,10 @@ Be thorough. Missing items cost money. Always respond with valid JSON.`
             multi_lite: window.multi_lite,
             lite_config: window.lite_config,
             u_value: window.u_value,
-            shgc: window.shgc
+            shgc: window.shgc,
+            coordinates: window.coordinates ? { x: window.coordinates.x, y: window.coordinates.y } : null
           }),
-          notes: `Mark: ${window.mark || 'N/A'} | Type: ${window.type || 'N/A'} | Material: ${window.material || 'TBD'} | Mfr: ${window.manufacturer || 'TBD'} | Glass: ${window.glass_type || 'N/A'} | Color: ${window.frame_color || 'N/A'} | Multi-lite: ${window.multi_lite ? `Yes (${window.lite_config || ''})` : 'No'} | Floor: ${window.floor_level || 'N/A'} | Unit: ${window.unit_type || 'N/A'} | Elevation: ${window.elevation || 'N/A'}`
+          notes: `[Confidence: ${window.confidence || 50}%] Mark: ${window.mark || 'N/A'} | Type: ${window.type || 'N/A'} | Material: ${window.material || 'TBD'} | Mfr: ${window.manufacturer || 'TBD'} | Glass: ${window.glass_type || 'N/A'} | Color: ${window.frame_color || 'N/A'} | Multi-lite: ${window.multi_lite ? `Yes (${window.lite_config || ''})` : 'No'} | Floor: ${window.floor_level || 'N/A'} | Unit: ${window.unit_type || 'N/A'} | Elevation: ${window.elevation || 'N/A'}`
         });
       }
 

@@ -90,17 +90,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    
-    // Log successful sign in
-    await supabase.functions.invoke('log-event', {
-      body: {
-        userEmail: email,
-        eventType: 'auth',
-        severity: 'success',
-        action: 'User Sign In',
-        description: 'User successfully signed in'
-      }
-    });
+
+    // Log successful sign in (non-blocking)
+    try {
+      await supabase.functions.invoke('log-event', {
+        body: {
+          userEmail: email,
+          eventType: 'auth',
+          severity: 'success',
+          action: 'User Sign In',
+          description: 'User successfully signed in'
+        }
+      });
+    } catch (logError) {
+      console.warn('Failed to log sign-in event:', logError);
+    }
   };
 
 
@@ -108,23 +112,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
     if (data.user) {
-      await supabase.from('user_profiles').insert({
-        id: data.user.id,
-        email,
-        full_name: fullName
-      });
-      
-      // Log new user registration
-      await supabase.functions.invoke('log-event', {
-        body: {
-          userId: data.user.id,
-          userEmail: email,
-          eventType: 'auth',
-          severity: 'success',
-          action: 'User Registration',
-          description: 'New user account created'
-        }
-      });
+      // Create user profile (important - don't skip)
+      try {
+        await supabase.from('user_profiles').insert({
+          id: data.user.id,
+          email,
+          full_name: fullName
+        });
+      } catch (profileError) {
+        console.warn('Failed to create user profile:', profileError);
+      }
+
+      // Log new user registration (non-blocking)
+      try {
+        await supabase.functions.invoke('log-event', {
+          body: {
+            userId: data.user.id,
+            userEmail: email,
+            eventType: 'auth',
+            severity: 'success',
+            action: 'User Registration',
+            description: 'New user account created'
+          }
+        });
+      } catch (logError) {
+        console.warn('Failed to log registration event:', logError);
+      }
     }
   };
 
@@ -133,19 +146,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const currentUser = user;
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-    
-    // Log sign out
+
+    // Log sign out (non-blocking)
     if (currentUser) {
-      await supabase.functions.invoke('log-event', {
-        body: {
-          userId: currentUser.id,
-          userEmail: currentUser.email,
-          eventType: 'auth',
-          severity: 'info',
-          action: 'User Sign Out',
-          description: 'User signed out'
-        }
-      });
+      try {
+        await supabase.functions.invoke('log-event', {
+          body: {
+            userId: currentUser.id,
+            userEmail: currentUser.email,
+            eventType: 'auth',
+            severity: 'info',
+            action: 'User Sign Out',
+            description: 'User signed out'
+          }
+        });
+      } catch (logError) {
+        console.warn('Failed to log sign-out event:', logError);
+      }
     }
   };
 

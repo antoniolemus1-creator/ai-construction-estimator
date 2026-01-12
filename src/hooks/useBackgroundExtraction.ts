@@ -124,12 +124,36 @@ export function useBackgroundExtraction() {
 
         if (!filePath) throw new Error('Plan file not found');
 
+        // If path includes user folder but file might be at root, try both
+        console.log('Original file path:', filePath);
+
+        // Extract just the filename (last part after any slashes)
+        const fileNameOnly = filePath.split('/').pop() || filePath;
+        console.log('Filename only:', fileNameOnly);
+
         console.log('Attempting to get signed URL for path:', filePath);
 
-        // Get signed URL
-        const { data: signedUrlData, error: urlError } = await supabase.storage
+        // Get signed URL - try full path first, then filename only
+        let signedUrlData;
+        let urlError;
+
+        // Try full path first
+        const result1 = await supabase.storage
           .from('construction-plans')
           .createSignedUrl(filePath, 3600);
+
+        if (result1.error && fileNameOnly !== filePath) {
+          // Full path failed, try just the filename (root level)
+          console.log('Full path failed, trying root level:', fileNameOnly);
+          const result2 = await supabase.storage
+            .from('construction-plans')
+            .createSignedUrl(fileNameOnly, 3600);
+          signedUrlData = result2.data;
+          urlError = result2.error;
+        } else {
+          signedUrlData = result1.data;
+          urlError = result1.error;
+        }
 
         if (urlError) {
           console.error('Signed URL error:', urlError);
@@ -137,7 +161,7 @@ export function useBackgroundExtraction() {
         }
 
         if (!signedUrlData?.signedUrl) {
-          console.error('No signed URL returned. Path:', filePath);
+          console.error('No signed URL returned. Path:', filePath, 'Filename:', fileNameOnly);
           throw new Error('Could not generate signed URL for plan - no URL returned');
         }
 
@@ -236,20 +260,31 @@ export function useBackgroundExtraction() {
 
             if (response?.error) {
               console.error(`Page ${i} error after retries:`, response.error);
+              console.error(`Page ${i} error details:`, JSON.stringify(response.error));
               // Continue to next page instead of stopping
               pagesProcessed++; // Still count as processed (with error)
               continue;
             }
 
             if (response?.data) {
+              console.log(`Page ${i} response:`, {
+                itemsStored: response.data.itemsStored,
+                sheetType: response.data.sheet_type,
+                message: response.data.message,
+                summary: response.data.summary
+              });
+
               itemsExtracted += response.data.itemsStored || 0;
               wallsFound += response.data.wallsFound || 0;
               pagesProcessed++;
 
               updateJob(jobId, {
-                message: `Page ${i}/${numPages} - ${itemsExtracted} items found`,
+                message: `Page ${i}/${numPages} - ${itemsExtracted} items found (${response.data.sheet_type || 'Unknown'})`,
                 results: { itemsExtracted, wallsFound, pagesProcessed },
               });
+            } else {
+              console.warn(`Page ${i}: No data in response`, response);
+              pagesProcessed++;
             }
 
             // Add small delay between pages to avoid rate limiting (500ms)

@@ -329,21 +329,38 @@ export function AdvancedUploadDialog({ open, onClose, onComplete, projectName }:
 
       for (let fileIdx = 0; fileIdx < files.length; fileIdx++) {
         const file = files[fileIdx];
-        const fileName = `${user.id}/${Date.now()}_${file.name}`;
+        // Store at root level (no user folder) to match existing files in bucket
+        const fileName = `${Date.now()}_${file.name}`;
 
-        console.log('Uploading file:', fileName, 'Size:', file.size);
+        console.log('Uploading file:', fileName, 'Size:', file.size, 'Type:', file.type);
 
         // Upload file to storage
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('construction-plans')
-          .upload(fileName, file);
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
 
         if (uploadError) {
           console.error('Upload error:', uploadError);
-          throw uploadError;
+          console.error('Upload error details:', JSON.stringify(uploadError));
+          throw new Error(`Upload failed: ${uploadError.message}`);
         }
 
         console.log('Upload success:', uploadData);
+
+        // Verify file exists in storage
+        const { data: verifyData, error: verifyError } = await supabase.storage
+          .from('construction-plans')
+          .createSignedUrl(fileName, 60);
+
+        if (verifyError || !verifyData?.signedUrl) {
+          console.error('File verification failed:', verifyError);
+          throw new Error('File upload verification failed - file may not have been saved');
+        }
+
+        console.log('File verified in storage:', verifyData.signedUrl.substring(0, 100) + '...');
 
         // Create plan record
         const { data: planData, error: planError } = await supabase

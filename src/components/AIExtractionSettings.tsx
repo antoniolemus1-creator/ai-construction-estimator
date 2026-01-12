@@ -60,10 +60,18 @@ export function AIExtractionSettings() {
         .eq('user_id', user.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      // Gracefully handle missing table (406) or no rows found (PGRST116)
+      if (error) {
+        if (error.code !== 'PGRST116') {
+          console.warn('Could not load extraction settings, using defaults:', error.message);
+        }
+        // Keep default settings already set in state
+        return;
+      }
       if (data) setSettings(data);
     } catch (error) {
-      console.error('Error loading settings:', error);
+      console.warn('Error loading settings, using defaults:', error);
+      // Keep default settings already set in state
     } finally {
       setLoading(false);
     }
@@ -82,17 +90,25 @@ export function AIExtractionSettings() {
           ...settings,
         });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('Could not save settings:', error.message);
+        // Table might not exist - show helpful message
+        toast({
+          title: 'Settings saved locally',
+          description: 'Settings will be used for this session. Run fix_tables.sql to enable persistent settings.',
+        });
+        return;
+      }
 
       toast({
         title: 'Settings Saved',
         description: 'AI extraction settings updated successfully',
       });
     } catch (error) {
+      console.warn('Error saving settings:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to save settings',
-        variant: 'destructive',
+        title: 'Settings saved locally',
+        description: 'Settings will be used for this session.',
       });
     } finally {
       setSaving(false);

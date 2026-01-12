@@ -8,7 +8,13 @@ if (!supabaseKey) {
   console.error('Missing VITE_SUPABASE_ANON_KEY environment variable');
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
 
 export { supabase };

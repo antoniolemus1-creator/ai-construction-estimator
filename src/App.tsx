@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AppProvider } from "@/contexts/AppContext";
+import { BackgroundJobsProvider } from "@/contexts/BackgroundJobsContext";
+import { BackgroundJobsStatusBar } from "@/components/BackgroundJobsStatusBar";
 import { AdminRoute } from "@/components/AdminRoute";
 import { AdminDashboard } from "@/components/AdminDashboard";
 import { BrowserCompatibilityChecker } from "@/components/BrowserCompatibilityChecker";
@@ -58,6 +60,7 @@ import MyLicensesPage from "./pages/MyLicensesPage";
 
 import PlanRevisionPage from "./pages/PlanRevisionPage";
 import PlanViewerPage from "./pages/PlanViewerPage";
+import Model3DViewerPage from "./pages/Model3DViewerPage";
 import NotFound from "./pages/NotFound";
 
 
@@ -77,12 +80,14 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AppProvider>
-          <TooltipProvider>
-            <BrowserCompatibilityChecker />
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <LicenseGuard>
+          <BackgroundJobsProvider>
+            <TooltipProvider>
+              <BrowserCompatibilityChecker />
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <BackgroundJobsStatusBar />
+                <LicenseGuard>
                 <Routes>
                   <Route path="/" element={<LandingPage />} />
                   <Route path="/dashboard" element={<Dashboard />} />
@@ -116,6 +121,8 @@ const App = () => (
                   <Route path="/plan-revisions" element={<PlanRevisionPage />} />
                   <Route path="/plan-viewer" element={<PlanViewerPage />} />
                   <Route path="/plan-viewer/:planId" element={<PlanViewerPage />} />
+                  <Route path="/3d-viewer" element={<Model3DViewerPage />} />
+                  <Route path="/3d-viewer/:planId" element={<Model3DViewerPage />} />
                   <Route path="/screen-recording" element={<ScreenRecordingPage />} />
                   <Route path="/video-annotation/:recordingId" element={<VideoAnnotationPage />} />
 
@@ -129,11 +136,11 @@ const App = () => (
 
                   <Route path="/billing" element={<BillingHistory />} />
                   <Route path="*" element={<NotFound />} />
-                </Routes>
-              </LicenseGuard>
-            </BrowserRouter>
-
-          </TooltipProvider>
+                  </Routes>
+                </LicenseGuard>
+              </BrowserRouter>
+            </TooltipProvider>
+          </BackgroundJobsProvider>
         </AppProvider>
       </AuthProvider>
     </QueryClientProvider>

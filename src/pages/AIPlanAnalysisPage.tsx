@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, Upload, ArrowLeftRight, Loader2, FileText, CheckCircle2, Eye, AlertCircle, FolderPlus } from 'lucide-react';
+import { MessageSquare, Upload, ArrowLeftRight, Loader2, FileText, CheckCircle2, Eye, AlertCircle, FolderPlus, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { VisionExtractorPanel } from '@/components/VisionExtractorPanel';
@@ -14,6 +15,7 @@ import { CreateProjectModal } from '@/components/CreateProjectModal';
 import { ProjectSelectionModal } from '@/components/ProjectSelectionModal';
 import { ExistingProjectSelector } from '@/components/ExistingProjectSelector';
 import { MultiFileUploadDialog } from '@/components/MultiFileUploadDialog';
+import { AdvancedUploadDialog } from '@/components/AdvancedUploadDialog';
 
 import { VoiceInput } from '@/components/VoiceInput';
 import { supabase } from '@/lib/supabase';
@@ -21,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 
 
 export default function AIPlanAnalysisPage() {
+  const navigate = useNavigate();
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
@@ -33,6 +36,7 @@ export default function AIPlanAnalysisPage() {
   const [showExistingProject, setShowExistingProject] = useState(false);
   const [showMultiFileUpload, setShowMultiFileUpload] = useState(false);
   const [showDocTypeSelector, setShowDocTypeSelector] = useState(false);
+  const [showAdvancedUpload, setShowAdvancedUpload] = useState(false);
 
   const [currentProjectName, setCurrentProjectName] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -57,21 +61,44 @@ export default function AIPlanAnalysisPage() {
   }, [selectedPlan]);
 
   const loadPlans = async () => {
-    const { data } = await supabase
-      .from('plans')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('plans')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (data) {
-      setPlans(data);
-      const planIds = data.map(p => p.id);
-      const { data: takeoffData } = await supabase
-        .from('takeoff_data')
-        .select('plan_id')
-        .in('plan_id', planIds);
-      
-      const plansWithExtractedData = new Set(takeoffData?.map(t => t.plan_id) || []);
-      setPlansWithData(plansWithExtractedData);
+      if (error) {
+        console.error('Error loading plans:', error);
+        toast({
+          title: 'Error loading plans',
+          description: error.message,
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      console.log('Loaded plans:', data?.length || 0);
+
+      if (data) {
+        setPlans(data);
+
+        if (data.length > 0) {
+          const planIds = data.map(p => p.id);
+          const { data: takeoffData, error: takeoffError } = await supabase
+            .from('takeoff_data')
+            .select('plan_id')
+            .in('plan_id', planIds);
+
+          if (takeoffError) {
+            console.warn('Error loading takeoff data:', takeoffError);
+          }
+
+          const plansWithExtractedData = new Set(takeoffData?.map(t => t.plan_id) || []);
+          setPlansWithData(plansWithExtractedData);
+        }
+      }
+    } catch (err) {
+      console.error('Unexpected error loading plans:', err);
     }
   };
 
@@ -115,7 +142,28 @@ export default function AIPlanAnalysisPage() {
 
   const handleProjectCreated = (projectName: string) => {
     setCurrentProjectName(projectName);
-    setShowMultiFileUpload(true);
+    setShowAdvancedUpload(true); // Use new advanced upload dialog
+  };
+
+  const handleAdvancedUploadComplete = async (planIds: string[], config: any) => {
+    if (planIds.length > 0) {
+      // Load the uploaded plans
+      const { data } = await supabase
+        .from('plans')
+        .select('*')
+        .in('id', planIds);
+
+      if (data && data.length > 0) {
+        setSelectedPlan(data[0]);
+        setExtractionConfig({
+          documentType: config.documentType === 'drawings' ? 'plans' : 'specs',
+          scale: config.scale,
+          csiDivisions: config.csiDivisions,
+          extractionOptions: config.selectedSheetTypes
+        });
+        loadPlans();
+      }
+    }
   };
 
   const handleExistingPlansSelected = (selectedPlans: any[]) => {
@@ -142,13 +190,31 @@ export default function AIPlanAnalysisPage() {
     
     setUploading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      // Get authenticated user
+      let userId: string | null = null;
+
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      console.log('Auth check - User:', user?.id, 'Error:', authError?.message);
+
+      if (user) {
+        userId = user.id;
+      } else {
+        // Fallback to session
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Session check:', session ? 'Has session' : 'No session');
+        if (session?.user) {
+          userId = session.user.id;
+        }
+      }
+
+      if (!userId) {
+        throw new Error('Not authenticated - please log in again');
+      }
 
       const uploadedPlans = [];
 
       for (const file of pendingFiles) {
-        const fileName = `${user.id}/${Date.now()}_${file.name}`;
+        const fileName = `${userId}/${Date.now()}_${file.name}`;
         const { error: uploadError } = await supabase.storage
           .from('construction-plans')
           .upload(fileName, file);
@@ -158,7 +224,7 @@ export default function AIPlanAnalysisPage() {
         const { data, error } = await supabase
           .from('plans')
           .insert({
-            user_id: user.id,
+            user_id: userId,
             project_name: currentProjectName,
             file_path: fileName,
             file_url: fileName,
@@ -338,8 +404,17 @@ export default function AIPlanAnalysisPage() {
                 {hasExtractedData && (
                   <Alert className="mb-4 bg-green-50 border-green-200">
                     <Eye className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-800">
-                      <strong>{extractedItems.length} items extracted!</strong> Ask questions below.
+                    <AlertDescription className="text-green-800 flex items-center justify-between">
+                      <span><strong>{extractedItems.length} items extracted!</strong> Ask questions below.</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="ml-4"
+                        onClick={() => navigate(`/plan-viewer/${selectedPlan.id}`)}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        View in Plan Viewer
+                      </Button>
                     </AlertDescription>
                   </Alert>
                 )}
@@ -412,6 +487,13 @@ export default function AIPlanAnalysisPage() {
         open={showDocTypeSelector}
         onClose={() => setShowDocTypeSelector(false)}
         onConfirm={handleExtractionConfigConfirmed}
+      />
+
+      <AdvancedUploadDialog
+        open={showAdvancedUpload}
+        onClose={() => setShowAdvancedUpload(false)}
+        onComplete={handleAdvancedUploadComplete}
+        projectName={currentProjectName}
       />
 
     </div>

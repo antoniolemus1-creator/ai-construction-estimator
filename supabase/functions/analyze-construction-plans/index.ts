@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 const json = (data: any, status = 200) => 
@@ -17,8 +18,12 @@ const parseJsonSafe = (text: string) => {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  // Always handle CORS preflight first
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
 
+  // Wrap everything in try-catch to ensure CORS headers are always returned
   try {
     const { planId, action, prompt, extractedData, hasVisionData, imageUrl, pageNumber, settings, analysisConfig } = await req.json();
 
@@ -218,93 +223,171 @@ Deno.serve(async (req) => {
       console.log('✅ Plan ownership verified');
       
       let extractionPrompt = '';
-      if (analysisConfig?.specDivisions?.length > 0) {
+      if (analysisConfig?.specDivisions && Array.isArray(analysisConfig.specDivisions) && analysisConfig.specDivisions.length > 0) {
         extractionPrompt = `Analyze this construction specification document image. Focus on divisions: ${analysisConfig.specDivisions.join(', ')}. Extract specifications you can see. Return JSON: {"specifications": [{"division": "string", "section": "string", "item": "string", "specification": "string", "quantity": "string", "standards": [], "notes": "string"}]}`;
       } else {
-        extractionPrompt = `You are performing a detailed wall takeoff from this construction floor plan.
+        extractionPrompt = `You are performing a comprehensive multi-scope construction takeoff. Extract data for: FRAMING, DRYWALL, CEILINGS, INSULATION, DOORS/FRAMES/HARDWARE, MILLWORK, CASEWORK, WINDOWS, and BATHROOM ACCESSORIES.
 
-CRITICAL INSTRUCTIONS:
-1. WALL TYPE IDENTIFICATION:
-   - Look for wall type legends, partition schedules, or wall type keys on the drawing
-   - Identify wall type codes/designations (e.g., "A", "B", "WP-1", "INT-1", "EXT-1", "DEMO")
-   - For each wall type, note any visible specifications (stud size, layers, fire rating)
-   - If wall types are shown in a legend, extract ALL the information from that legend
+ALWAYS SEPARATE DATA BY:
+- Floor/Level (Level 1, Level 2, etc.)
+- Phase (if applicable)
+- Area/Zone (Apartments, Common Areas, Clubhouse, etc.)
+- Unit Type (1BR, 2BR, Studio, etc.)
 
-2. LINEAR FOOTAGE MEASUREMENT:
-   - Measure EACH wall segment individually
-   - Group walls by their wall type code
-   - Use the scale bar or noted scale to calculate actual lengths
-   - ${analysisConfig?.drawingScale ? `Drawing scale: ${analysisConfig.drawingScale}` : 'If no scale is provided, estimate based on typical room dimensions (bedrooms ~12ft, bathrooms ~8ft, hallways ~4ft wide)'}
+=== SHEET TYPES ===
+- FLOOR PLAN / ID PLAN: Room layouts, door/window locations, room dimensions
+- REFLECTED CEILING PLAN (RCP): Ceiling layouts, heights, types
+- DOOR SCHEDULE: Complete door information
+- WINDOW SCHEDULE: Complete window information
+- FINISH SCHEDULE: Room finishes, ceilings, bases
+- HARDWARE SCHEDULE/SETS: Door hardware groups
+- PARTITION/WALL TYPES: Wall assemblies
+- CABINET ELEVATIONS: Kitchen/bath cabinet details
+- MILLWORK DETAILS: Trim profiles, casework details
+- STRUCTURAL: Framing, hardware
+- SPECIFICATIONS (SPECS): Detailed requirements by CSI division
 
-3. WALL PROPERTIES TO EXTRACT:
-   - Wall type code/designation
-   - Linear footage
-   - Wall composition if shown (e.g., "5/8 GWB ea. side, 3-5/8 metal studs @ 16 o.c.")
-   - Fire rating if noted
-   - STC rating if noted
-   - Location/room
+=== SCOPE 1: FRAMING & DRYWALL ===
+- Wall linear footage by type (with floor/area)
+- Wall type specs (studs, gauge, spacing, layers)
+- Sheathing (DensGlass, plywood)
+- Fire ratings, UL numbers, STC ratings
+- Seismic requirements and hardware
 
-4. ITEMS THAT REQUIRE USER CLARIFICATION (add to clarifications array):
-   - Deck/ceiling height (if not shown on plans)
-   - Metal stud gauge (if not specified)
-   - Drywall type (regular, Type X, moisture resistant, abuse resistant)
-   - Drywall finish level (Level 0-5)
-   - Paint type and sheen
-   - Insulation requirements
+=== SCOPE 2: CEILINGS ===
+For EVERY room (including hallways):
+- Room name, number, floor level, area/unit type
+- Square footage (SF)
+- Perimeter (LF) for edge trim
+- Ceiling height
+- Ceiling type: DRYWALL | ACT (acoustical) | SPECIALTY | SOUND ASSEMBLY | UL RATED
+- Insulation above: type, R-value, SAB
+- Seismic bracing requirements
 
-${analysisConfig?.takeoffItems?.length > 0 ? `Also extract these specific items: ${analysisConfig.takeoffItems.join(', ')}` : ''}
+=== SCOPE 3: THERMAL & SOUND INSULATION ===
+Extract from wall types, ceiling schedules, specs, general notes:
+- Location (walls, ceilings, floors, exterior)
+- Type (fiberglass batt, blown-in, rigid, mineral wool, SAB)
+- R-value
+- Thickness
+- STC/IIC requirements
+- Fire rating requirements
 
-IMPORTANT: For each item, provide approximate pixel coordinates (x, y) relative to the image dimensions (assume 1000x1000 canvas). This allows highlighting items on the drawing.
+=== SCOPE 4: DOORS, FRAMES & HARDWARE ===
+From DOOR SCHEDULE, floor plans, ID plans, specs:
 
-Return JSON with this structure:
+DOORS:
+- Door mark/number
+- Size (width x height x thickness)
+- Door type: HOLLOW METAL | WOOD | PREHUNG | FIRE-RATED
+- Material: Steel, Wood, FRP, Glass
+- Wood species (if wood): Oak, Maple, Birch, etc.
+- Wood veneer: Rotary, Plain sliced, etc.
+- Style: Flush, Panel, Louver, Vision lite
+- Fire rating (20min, 45min, 60min, 90min)
+- Smoke rating
+- Acoustic rating (STC)
+- Location (room, floor, unit type)
+
+FRAMES:
+- Frame type: HOLLOW METAL | WOOD | ALUMINUM
+- Frame profile/series
+- Gauge (for HM): 16ga, 14ga
+- Anchor type
+- Fire label
+
+HARDWARE (from hardware schedule/sets/specs):
+- Hardware set number
+- Lockset type: Passage, Privacy, Classroom, Storeroom, Entry
+- Manufacturer
+- Finish (US26D, US32D, etc.)
+- Hinges: Type, size, quantity
+- Closer: Type, size
+- Stops
+- Weatherstripping
+- Threshold
+- ADA compliance
+
+=== SCOPE 5: MILLWORK & TRIM ===
+- BASE TRIM: Profile, size, material, linear footage per room
+- DOOR CASING: Profile, size, material
+- WINDOW CASING: Profile, size, material
+- CROWN MOLDING: Profile, size, locations
+- CHAIR RAIL: Profile, locations
+- PANELING: Material, area, locations
+
+=== SCOPE 6: CASEWORK ===
+KITCHEN CABINETS:
+- Cabinet type (base, wall, tall)
+- Size (W x D x H)
+- Door style
+- Material/species
+- Finish
+- Hardware (pulls, knobs)
+- Location/unit type
+
+BATHROOM CABINETS (VANITIES):
+- Vanity type
+- Size
+- Countertop type
+- Location/unit type
+
+=== SCOPE 7: WINDOWS ===
+From WINDOW SCHEDULE, elevations, specs:
+- Window mark/number
+- Size (W x H)
+- Type: Fixed, Casement, Double-hung, Slider, Awning
+- Material: Vinyl, Aluminum, Wood, Fiberglass
+- Manufacturer/vendor (if noted)
+- Glass type: Clear, Low-E, Tempered, Laminated
+- Frame color
+- Multi-lite configuration (note if large windows are broken into sections)
+- U-value/SHGC (if noted)
+- Location (floor, elevation, unit type)
+- NOTE: Large windows may be "mulled" (joined) on site - extract as shown
+
+=== SCOPE 8: BATHROOM ACCESSORIES & PARTITIONS ===
+TOILET PARTITIONS:
+- Type: Floor-mounted, Ceiling-hung, Floor-to-ceiling
+- Material/core: Solid plastic, Phenolic, Powder-coated steel, Stainless steel
+- Manufacturer/brand
+- Color
+- Configuration (stalls, urinal screens)
+
+ACCESSORIES:
+- Item type: Grab bars, Paper holders, Towel bars, Mirrors, Shelves
+- Manufacturer/brand
+- Material/finish
+- ADA compliance
+- Locations
+
+${analysisConfig?.drawingScale ? `Drawing scale provided: ${analysisConfig.drawingScale}` : ''}
+
+Return JSON:
 {
-  "wall_types_legend": [
-    {
-      "type_code": "string (e.g., 'A', 'WP-1')",
-      "description": "string (full description from legend)",
-      "composition": "string (materials/layers)",
-      "stud_size": "string (e.g., '3-5/8\"', '6\"')",
-      "stud_spacing": "string (e.g., '16\" o.c.')",
-      "fire_rating": "string or null",
-      "stc_rating": "number or null",
-      "layers_each_side": "number",
-      "drywall_type": "string or null"
-    }
-  ],
-  "walls": [
-    {
-      "wall_type_code": "string",
-      "length_ft": "number",
-      "room_name": "string",
-      "from_to": "string (e.g., 'Grid A to Grid B')",
-      "notes": "string",
-      "confidence": "number 0-100",
-      "coordinates": {"start_x": "number 0-1000", "start_y": "number 0-1000", "end_x": "number 0-1000", "end_y": "number 0-1000"}
-    }
-  ],
-  "wall_type_totals": [
-    {
-      "type_code": "string",
-      "total_linear_ft": "number",
-      "wall_count": "number"
-    }
-  ],
-  "clarifications_needed": [
-    {
-      "question_type": "string (deck_height|stud_gauge|drywall_type|finish_level|paint_type|insulation|other)",
-      "question": "string",
-      "context": "string (why this is needed)",
-      "affects_wall_types": ["array of wall type codes this affects"]
-    }
-  ],
-  "ceilings": [{"area_sqft": "number", "room_name": "string", "ceiling_type": "string", "confidence": "number", "coordinates": {"x": "number", "y": "number", "width": "number", "height": "number"}}],
-  "doors": [{"count": "number", "room_name": "string", "type": "string", "size": "string", "coordinates": {"x": "number 0-1000", "y": "number 0-1000"}}],
-  "windows": [{"count": "number", "room_name": "string", "type": "string", "size": "string", "coordinates": {"x": "number 0-1000", "y": "number 0-1000"}}],
-  "drawing_info": {
-    "sheet_number": "string",
-    "scale": "string",
-    "title": "string"
-  }
+  "sheet_type": "string",
+  "drawing_info": {"sheet_number": "string", "scale": "string", "title": "string", "floor_level": "string", "phase": "string or null"},
+  "walls": [{"wall_type_code": "string", "length_ft": "number", "height_ft": "number or null", "room_name": "string", "floor_level": "string", "area_type": "string", "is_existing": "boolean", "is_exterior": "boolean", "notes": "string", "coordinates": {"start_x": "number", "start_y": "number", "end_x": "number", "end_y": "number"}}],
+  "wall_types_legend": [{"type_code": "string", "description": "string", "stud_size": "string", "stud_gauge": "string", "stud_spacing": "string", "max_height": "string", "drywall_layers_each_side": "number", "drywall_type": "string", "sheathing": "string", "fire_rating": "string", "ul_number": "string", "stc_rating": "number", "insulation": "string", "insulation_r_value": "string"}],
+  "wall_type_totals": [{"type_code": "string", "total_linear_ft": "number", "wall_count": "number", "floor_level": "string"}],
+  "rooms": [{"room_name": "string", "room_number": "string", "area_sqft": "number", "perimeter_lf": "number", "ceiling_height": "string", "ceiling_type": "string", "floor_level": "string", "unit_type": "string", "area_type": "string"}],
+  "ceilings": [{"room_name": "string", "room_number": "string", "area_sqft": "number", "perimeter_lf": "number", "ceiling_height": "string", "ceiling_category": "string", "material": "string", "grid_type": "string", "tile_size": "string", "fire_rating": "string", "ul_number": "string", "stc_rating": "number", "nrc_rating": "number", "insulation_above": "boolean", "insulation_type": "string", "insulation_r_value": "string", "seismic_bracing_required": "boolean", "floor_level": "string", "unit_type": "string", "area_type": "string"}],
+  "insulation": [{"location": "string", "type": "string", "r_value": "string", "thickness": "string", "purpose": "string (thermal|sound|fire)", "wall_types": ["string"], "notes": "string"}],
+  "doors": [{"mark": "string", "width": "string", "height": "string", "thickness": "string", "door_type": "string (hollow_metal|wood|prehung|fire_rated)", "material": "string", "wood_species": "string", "wood_veneer": "string", "style": "string (flush|panel|louver)", "fire_rating": "string", "smoke_rating": "string", "stc_rating": "number", "frame_type": "string", "frame_material": "string", "frame_gauge": "string", "hardware_set": "string", "room_name": "string", "floor_level": "string", "unit_type": "string", "area_type": "string", "quantity": "number"}],
+  "door_hardware_sets": [{"set_number": "string", "lockset_type": "string", "lockset_function": "string", "manufacturer": "string", "finish": "string", "hinge_type": "string", "hinge_qty": "number", "closer_type": "string", "stop_type": "string", "threshold": "string", "weatherstrip": "boolean", "ada_compliant": "boolean"}],
+  "millwork": [{"item_type": "string (base_trim|door_casing|window_casing|crown|chair_rail|paneling)", "profile": "string", "size": "string", "material": "string", "finish": "string", "linear_ft": "number", "area_sqft": "number", "room_name": "string", "floor_level": "string", "unit_type": "string"}],
+  "casework": [{"item_type": "string (kitchen_base|kitchen_wall|kitchen_tall|vanity|other)", "size": "string", "door_style": "string", "material": "string", "finish": "string", "countertop": "string", "hardware": "string", "quantity": "number", "room_name": "string", "floor_level": "string", "unit_type": "string"}],
+  "windows": [{"mark": "string", "width": "string", "height": "string", "type": "string (fixed|casement|double_hung|slider|awning)", "material": "string", "manufacturer": "string", "glass_type": "string", "frame_color": "string", "multi_lite": "boolean", "lite_config": "string", "u_value": "string", "shgc": "string", "room_name": "string", "floor_level": "string", "unit_type": "string", "elevation": "string", "quantity": "number"}],
+  "bathroom_partitions": [{"type": "string (floor_mounted|ceiling_hung|floor_to_ceiling)", "material": "string", "core": "string", "manufacturer": "string", "color": "string", "configuration": "string", "stall_count": "number", "urinal_screen_count": "number", "room_name": "string", "floor_level": "string"}],
+  "bathroom_accessories": [{"item_type": "string", "manufacturer": "string", "model": "string", "material": "string", "finish": "string", "ada_compliant": "boolean", "quantity": "number", "room_name": "string", "floor_level": "string"}],
+  "structural_hardware": [{"item": "string", "manufacturer": "string", "quantity": "number", "location": "string", "is_seismic": "boolean", "floor_level": "string"}],
+  "seismic_requirements": [{"requirement_type": "string", "description": "string", "applies_to": "string", "seismic_category": "string"}],
+  "beams_headers": [{"size": "string", "length_ft": "number", "location": "string", "type": "string", "floor_level": "string"}],
+  "soffits": [{"width_inches": "number", "depth_inches": "number", "length_ft": "number", "location": "string", "floor_level": "string"}],
+  "deck_heights": [{"floor_level": "string", "height_ft_in": "string", "area": "string"}],
+  "general_notes": [{"category": "string", "note": "string", "applies_to": "string"}],
+  "ul_assemblies": [{"ul_number": "string", "fire_rating": "string", "description": "string", "assembly_type": "string"}],
+  "clarifications_needed": [{"question_type": "string", "question": "string", "context": "string", "affects": "string"}]
 }`;
       }
 
@@ -320,20 +403,37 @@ Return JSON with this structure:
           messages: [
             {
               role: 'system',
-              content: `You are an expert commercial drywall estimator with 20+ years of experience reading construction documents. You specialize in:
-- Reading partition schedules and wall type legends
-- Performing accurate linear footage takeoffs
-- Understanding metal stud framing (gauges, spacing, heights)
-- Drywall layering and fire-rated assemblies
-- Identifying what information is missing and needs clarification from the GC or architect
+              content: `You are an expert commercial construction estimator with 25+ years experience in MULTI-FAMILY construction. You perform comprehensive takeoffs for multiple scopes:
 
-When analyzing drawings:
-1. ALWAYS look for wall type legends/partition schedules first - these define the assembly for each wall type code
-2. Measure each wall segment and group by wall type code
-3. Calculate totals per wall type for material ordering
-4. Flag any missing information that affects material quantities (deck height, stud gauge, drywall type, finish level, paint)
+SCOPES YOU EXTRACT:
+1. FRAMING & DRYWALL: Walls, studs, sheathing, fire ratings
+2. CEILINGS: Drywall, ACT, specialty - with SF, perimeter, insulation, seismic
+3. THERMAL/SOUND INSULATION: R-values, STC, locations
+4. DOORS/FRAMES/HARDWARE: Hollow metal, wood, prehung, hardware sets
+5. MILLWORK: Base trim, casings, paneling
+6. CASEWORK: Kitchen cabinets, bathroom vanities
+7. WINDOWS: Types, materials, sizes, multi-lite configurations
+8. BATHROOM ACCESSORIES & PARTITIONS: Brands, materials, core types
 
-Be thorough and precise. Construction estimating errors cost real money. Always respond with valid JSON.`
+SHEET TYPES YOU READ:
+- Floor Plans, ID Plans, RCP, Door Schedules, Window Schedules
+- Finish Schedules, Hardware Schedules, Cabinet Elevations
+- Partition Schedules, Structural, Specifications
+
+CRITICAL RULES:
+1. ALWAYS separate by: Floor Level, Phase, Area/Zone, Unit Type
+2. Extract from ALL sheet types - don't skip any
+3. Calculate room SF and perimeter from dimensions
+4. Cross-reference between schedules, plans, and specs
+5. Note SEISMIC requirements - affects hardware selection
+6. For DOORS: Get mark, size, type, species, veneer, style, frame, hardware set
+7. For WINDOWS: Note if large windows are mulled/broken into sections
+8. For CASEWORK: Capture style, material, finish, hardware
+9. For BATHROOM PARTITIONS: Get material/core (phenolic, solid plastic, etc.)
+
+Data sources for each scope vary - check schedules, plans, AND specs.
+
+Be thorough. Missing items cost money. Always respond with valid JSON.`
             },
             {
               role: 'user',
@@ -363,14 +463,35 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
       } catch (e: any) {
         console.error('❌ JSON parse error:', e.message);
         console.error('Content sample:', content.slice(0, 300));
-        return json({ 
-          error_code: 'invalid_json_from_model', 
+        return json({
+          error_code: 'invalid_json_from_model',
           details: e.message,
           sample: content.slice(0, 200)
         }, 502);
       }
 
+      // Extract data from ALL sheet types - no longer skipping non-floor plans
+      console.log(`📋 Page ${pageNumber} - Sheet type: ${parsed.sheet_type || 'Unknown'}. Extracting all relevant data.`);
+
       const items = [];
+
+      // ALWAYS store sheet info for cross-referencing - even if no takeoff items
+      // This ensures detail sheets, schedules, notes pages are captured
+      const drawingInfo = parsed.drawing_info || {};
+      items.push({
+        plan_id: planId,
+        page_number: pageNumber || 1,
+        item_type: 'sheet_info',
+        description: `${parsed.sheet_type || 'Unknown Sheet'} - ${drawingInfo.title || drawingInfo.sheet_number || `Page ${pageNumber}`}`,
+        quantity: 1,
+        unit: 'EA',
+        sheet_number: drawingInfo.sheet_number,
+        sheet_title: drawingInfo.title,
+        drawing_scale: drawingInfo.scale,
+        revision_number: drawingInfo.revision_number,
+        revision_date: drawingInfo.revision_date,
+        notes: `Sheet Type: ${parsed.sheet_type || 'Unknown'} | Floor: ${drawingInfo.floor_level || 'N/A'} | Phase: ${drawingInfo.phase || 'N/A'} | Scale: ${drawingInfo.scale || 'N/A'}`
+      });
 
       if (parsed.specifications) {
         for (const spec of parsed.specifications) {
@@ -387,7 +508,7 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
         }
       }
 
-      // Store wall type legend entries
+      // Store wall type legend entries with expanded fields
       for (const wt of parsed.wall_types_legend || []) {
         items.push({
           plan_id: planId,
@@ -396,22 +517,30 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
           wall_type: wt.type_code,
           description: wt.description,
           wall_materials: JSON.stringify({
-            composition: wt.composition,
             stud_size: wt.stud_size,
+            stud_gauge: wt.stud_gauge,
             stud_spacing: wt.stud_spacing,
-            layers_each_side: wt.layers_each_side,
+            max_height: wt.max_height,
+            drywall_layers_each_side: wt.drywall_layers_each_side,
             drywall_type: wt.drywall_type,
             fire_rating: wt.fire_rating,
-            stc_rating: wt.stc_rating
+            ul_number: wt.ul_number,
+            stc_rating: wt.stc_rating,
+            insulation: wt.insulation
           }),
           unit: 'EA',
           quantity: 1,
-          notes: `Fire Rating: ${wt.fire_rating || 'N/A'} | STC: ${wt.stc_rating || 'N/A'} | Studs: ${wt.stud_size || 'TBD'} @ ${wt.stud_spacing || 'TBD'}`
+          notes: `Fire: ${wt.fire_rating || 'N/A'} | UL: ${wt.ul_number || 'N/A'} | STC: ${wt.stc_rating || 'N/A'} | Studs: ${wt.stud_size || 'TBD'} ${wt.stud_gauge || ''} @ ${wt.stud_spacing || 'TBD'} | Max Ht: ${wt.max_height || 'TBD'}`
         });
       }
 
-      // Store individual wall segments with type code and coordinates
+      // Store individual wall segments with type code, coordinates, and new fields
       for (const wall of parsed.walls || []) {
+        // Determine wall classification
+        let wallClassification = 'interior';
+        if (wall.is_existing) wallClassification = 'existing';
+        else if (wall.is_exterior) wallClassification = 'exterior';
+
         items.push({
           plan_id: planId,
           page_number: pageNumber || 1,
@@ -420,6 +549,7 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
           unit: 'LF',
           dimensions: JSON.stringify({
             length_ft: wall.length_ft,
+            height_ft: wall.height_ft,
             from_to: wall.from_to,
             coordinates: wall.coordinates ? {
               points: [
@@ -428,11 +558,12 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
               ]
             } : null
           }),
-          confidence_score: wall.confidence,
           room_name: wall.room_name,
           wall_type: wall.wall_type_code,
+          wall_height: wall.height_ft,
           linear_footage: wall.length_ft,
-          notes: wall.notes || ''
+          wall_classification: wallClassification,
+          notes: `${wall.is_existing ? '[EXISTING] ' : ''}${wall.is_exterior ? '[EXTERIOR] ' : ''}${wall.notes || ''}`
         });
       }
 
@@ -455,70 +586,379 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
       if (clarifications.length > 0) {
         console.log(`📋 ${clarifications.length} clarification questions to store`);
         for (const q of clarifications) {
-          const { error: qErr } = await supabaseClient
-            .from('ai_clarification_questions')
-            .insert({
-              plan_id: planId,
-              user_id: user.id,
-              question_type: q.question_type,
-              question_text: q.question,
-              context: q.context,
-              affects_items: q.affects_wall_types || [],
-              page_number: pageNumber || 1
-            });
-          if (qErr) {
-            console.warn('⚠️ Could not store clarification question:', qErr.message);
-          }
+          // Store clarification as a takeoff_data item instead to avoid schema issues
+          items.push({
+            plan_id: planId,
+            page_number: pageNumber || 1,
+            item_type: 'clarification_needed',
+            description: q.question,
+            quantity: 1,
+            unit: 'EA',
+            notes: `Type: ${q.question_type || 'general'} | Context: ${q.context || 'N/A'} | Affects: ${q.affects || q.affects_wall_types?.join(', ') || 'N/A'}`
+          });
         }
       }
 
 
+      // Store rooms with SF and perimeter
+      for (const room of parsed.rooms || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: 'room',
+          description: room.room_name,
+          room_name: room.room_name,
+          room_number: room.room_number,
+          room_area: room.area_sqft,
+          quantity: room.area_sqft,
+          unit: 'SF',
+          ceiling_height: room.ceiling_height,
+          ceiling_type: room.ceiling_type,
+          notes: `Perimeter: ${room.perimeter_lf || 0} LF | Height: ${room.ceiling_height || 'TBD'} | Floor: ${room.floor_level || 'N/A'}`
+        });
+      }
+
+      // Store detailed ceiling data with all new fields
       for (const ceiling of parsed.ceilings || []) {
         items.push({
           plan_id: planId,
           page_number: pageNumber || 1,
           item_type: 'ceiling',
+          description: `${ceiling.ceiling_category || 'ceiling'} - ${ceiling.material || ceiling.ceiling_type_code || 'TBD'}`,
           quantity: ceiling.area_sqft,
           unit: 'SF',
-          confidence_score: ceiling.confidence,
           room_name: ceiling.room_name,
-          ceiling_type: ceiling.ceiling_type,
+          room_number: ceiling.room_number,
+          ceiling_type: ceiling.ceiling_category || 'drywall',
+          ceiling_type_detail: ceiling.material,
           ceiling_area_sqft: ceiling.area_sqft,
-          dimensions: ceiling.coordinates ? JSON.stringify({
-            coordinates: { x: ceiling.coordinates.x, y: ceiling.coordinates.y, width: ceiling.coordinates.width, height: ceiling.coordinates.height }
-          }) : null
+          ceiling_height: ceiling.ceiling_height,
+          dimensions: JSON.stringify({
+            area_sqft: ceiling.area_sqft,
+            perimeter_lf: ceiling.perimeter_lf,
+            grid_type: ceiling.grid_type,
+            tile_size: ceiling.tile_size,
+            layers: ceiling.layers
+          }),
+          notes: `Category: ${ceiling.ceiling_category || 'N/A'} | Material: ${ceiling.material || 'TBD'} | Perimeter: ${ceiling.perimeter_lf || 0} LF | Fire: ${ceiling.fire_rating || 'N/A'} | UL: ${ceiling.ul_number || 'N/A'} | STC: ${ceiling.stc_rating || 'N/A'} | NRC: ${ceiling.nrc_rating || 'N/A'} | Insulation: ${ceiling.insulation_above ? `${ceiling.insulation_type || 'Yes'} R-${ceiling.insulation_r_value || 'TBD'}` : 'None'} | Seismic: ${ceiling.seismic_bracing_required ? `Yes (${ceiling.seismic_category || 'TBD'})` : 'No'}`
         });
       }
 
+      // Store ceiling types legend
+      for (const ct of parsed.ceiling_types_legend || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: 'ceiling_type_legend',
+          description: `${ct.type_code} - ${ct.description}`,
+          ceiling_type: ct.category,
+          ceiling_type_detail: ct.material,
+          quantity: 1,
+          unit: 'EA',
+          notes: `Category: ${ct.category || 'N/A'} | Material: ${ct.material || 'TBD'} | Fire: ${ct.fire_rating || 'N/A'} | UL: ${ct.ul_number || 'N/A'} | STC: ${ct.stc_rating || 'N/A'} | NRC: ${ct.nrc_rating || 'N/A'} | Insulation: ${ct.insulation || 'N/A'} R-${ct.insulation_r_value || 'N/A'}`
+        });
+      }
+
+      // Store detailed door information
       for (const door of parsed.doors || []) {
         items.push({
           plan_id: planId,
           page_number: pageNumber || 1,
-          item_type: 'door',
-          quantity: door.count || 1,
+          item_type: door.door_type === 'hollow_metal' ? 'hollow_metal_door' : door.door_type === 'fire_rated' ? 'fire_door' : 'door',
+          description: `${door.mark || ''} - ${door.width || ''}x${door.height || ''} ${door.style || ''} ${door.material || ''}`,
+          quantity: door.quantity || 1,
           unit: 'EA',
           room_name: door.room_name,
-          door_material: door.type,
-          door_size: door.size,
-          dimensions: door.coordinates ? JSON.stringify({
-            coordinates: { x: door.coordinates.x, y: door.coordinates.y }
-          }) : null
+          door_material: door.material,
+          door_type: door.door_type,
+          door_size: `${door.width || ''}x${door.height || ''}x${door.thickness || ''}`,
+          dimensions: JSON.stringify({
+            width: door.width,
+            height: door.height,
+            thickness: door.thickness,
+            wood_species: door.wood_species,
+            wood_veneer: door.wood_veneer,
+            style: door.style,
+            frame_type: door.frame_type,
+            frame_material: door.frame_material,
+            frame_gauge: door.frame_gauge,
+            hardware_set: door.hardware_set
+          }),
+          notes: `Mark: ${door.mark || 'N/A'} | Type: ${door.door_type || 'N/A'} | Material: ${door.material || 'TBD'} | Species: ${door.wood_species || 'N/A'} | Veneer: ${door.wood_veneer || 'N/A'} | Style: ${door.style || 'N/A'} | Fire: ${door.fire_rating || 'N/A'} | Frame: ${door.frame_type || 'N/A'} ${door.frame_gauge || ''} | HW Set: ${door.hardware_set || 'N/A'} | Floor: ${door.floor_level || 'N/A'} | Unit: ${door.unit_type || 'N/A'} | Area: ${door.area_type || 'N/A'}`
         });
       }
 
+      // Store door hardware sets
+      for (const hwSet of parsed.door_hardware_sets || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: 'door_hardware_set',
+          description: `Set ${hwSet.set_number} - ${hwSet.lockset_function || hwSet.lockset_type || 'N/A'}`,
+          quantity: 1,
+          unit: 'EA',
+          hardware_package: hwSet.set_number,
+          hardware_components: JSON.stringify({
+            lockset_type: hwSet.lockset_type,
+            lockset_function: hwSet.lockset_function,
+            manufacturer: hwSet.manufacturer,
+            finish: hwSet.finish,
+            hinge_type: hwSet.hinge_type,
+            hinge_qty: hwSet.hinge_qty,
+            closer_type: hwSet.closer_type,
+            stop_type: hwSet.stop_type,
+            threshold: hwSet.threshold,
+            weatherstrip: hwSet.weatherstrip,
+            ada_compliant: hwSet.ada_compliant
+          }),
+          notes: `Set: ${hwSet.set_number || 'N/A'} | Lock: ${hwSet.lockset_function || hwSet.lockset_type || 'N/A'} | Mfr: ${hwSet.manufacturer || 'TBD'} | Finish: ${hwSet.finish || 'TBD'} | Hinge: ${hwSet.hinge_type || 'N/A'} x${hwSet.hinge_qty || 0} | Closer: ${hwSet.closer_type || 'N/A'} | ADA: ${hwSet.ada_compliant ? 'Yes' : 'No'}`
+        });
+      }
+
+      // Store detailed window information
       for (const window of parsed.windows || []) {
         items.push({
           plan_id: planId,
           page_number: pageNumber || 1,
-          item_type: 'window',
-          quantity: window.count || 1,
+          item_type: window.multi_lite ? 'window_mulled' : 'window',
+          description: `${window.mark || ''} - ${window.width || ''}x${window.height || ''} ${window.type || ''} ${window.material || ''}`,
+          quantity: window.quantity || 1,
           unit: 'EA',
           room_name: window.room_name,
-          window_material: window.type,
-          window_size: window.size,
-          dimensions: window.coordinates ? JSON.stringify({
-            coordinates: { x: window.coordinates.x, y: window.coordinates.y }
-          }) : null
+          window_material: window.material,
+          window_size: `${window.width || ''}x${window.height || ''}`,
+          dimensions: JSON.stringify({
+            width: window.width,
+            height: window.height,
+            type: window.type,
+            material: window.material,
+            manufacturer: window.manufacturer,
+            glass_type: window.glass_type,
+            frame_color: window.frame_color,
+            multi_lite: window.multi_lite,
+            lite_config: window.lite_config,
+            u_value: window.u_value,
+            shgc: window.shgc
+          }),
+          notes: `Mark: ${window.mark || 'N/A'} | Type: ${window.type || 'N/A'} | Material: ${window.material || 'TBD'} | Mfr: ${window.manufacturer || 'TBD'} | Glass: ${window.glass_type || 'N/A'} | Color: ${window.frame_color || 'N/A'} | Multi-lite: ${window.multi_lite ? `Yes (${window.lite_config || ''})` : 'No'} | Floor: ${window.floor_level || 'N/A'} | Unit: ${window.unit_type || 'N/A'} | Elevation: ${window.elevation || 'N/A'}`
+        });
+      }
+
+      // Store millwork items
+      for (const mw of parsed.millwork || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: `millwork_${mw.item_type || 'trim'}`,
+          description: `${mw.item_type || 'Trim'} - ${mw.profile || ''} ${mw.size || ''} ${mw.material || ''}`,
+          quantity: mw.linear_ft || mw.area_sqft || 1,
+          unit: mw.linear_ft ? 'LF' : mw.area_sqft ? 'SF' : 'EA',
+          linear_footage: mw.linear_ft,
+          room_name: mw.room_name,
+          material_spec: mw.material,
+          notes: `Type: ${mw.item_type || 'N/A'} | Profile: ${mw.profile || 'N/A'} | Size: ${mw.size || 'N/A'} | Material: ${mw.material || 'TBD'} | Finish: ${mw.finish || 'N/A'} | Floor: ${mw.floor_level || 'N/A'} | Unit: ${mw.unit_type || 'N/A'}`
+        });
+      }
+
+      // Store casework (cabinets)
+      for (const cw of parsed.casework || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: cw.item_type?.includes('kitchen') ? 'kitchen_cabinet' : cw.item_type?.includes('vanity') ? 'bathroom_vanity' : 'casework',
+          description: `${cw.item_type || 'Cabinet'} - ${cw.size || ''} ${cw.door_style || ''} ${cw.material || ''}`,
+          quantity: cw.quantity || 1,
+          unit: 'EA',
+          room_name: cw.room_name,
+          material_spec: cw.material,
+          dimensions: JSON.stringify({
+            size: cw.size,
+            door_style: cw.door_style,
+            material: cw.material,
+            finish: cw.finish,
+            countertop: cw.countertop,
+            hardware: cw.hardware
+          }),
+          notes: `Type: ${cw.item_type || 'N/A'} | Size: ${cw.size || 'N/A'} | Style: ${cw.door_style || 'N/A'} | Material: ${cw.material || 'TBD'} | Finish: ${cw.finish || 'N/A'} | Countertop: ${cw.countertop || 'N/A'} | Hardware: ${cw.hardware || 'N/A'} | Floor: ${cw.floor_level || 'N/A'} | Unit: ${cw.unit_type || 'N/A'}`
+        });
+      }
+
+      // Store bathroom partitions
+      for (const bp of parsed.bathroom_partitions || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: 'bathroom_partition',
+          description: `${bp.type || 'Partition'} - ${bp.material || ''} ${bp.core || ''}`,
+          quantity: (bp.stall_count || 0) + (bp.urinal_screen_count || 0) || 1,
+          unit: 'EA',
+          room_name: bp.room_name,
+          material_spec: `${bp.material || ''} ${bp.core || ''}`.trim(),
+          dimensions: JSON.stringify({
+            type: bp.type,
+            material: bp.material,
+            core: bp.core,
+            manufacturer: bp.manufacturer,
+            color: bp.color,
+            configuration: bp.configuration,
+            stall_count: bp.stall_count,
+            urinal_screen_count: bp.urinal_screen_count
+          }),
+          notes: `Type: ${bp.type || 'N/A'} | Material: ${bp.material || 'TBD'} | Core: ${bp.core || 'N/A'} | Mfr: ${bp.manufacturer || 'TBD'} | Color: ${bp.color || 'N/A'} | Stalls: ${bp.stall_count || 0} | Urinal Screens: ${bp.urinal_screen_count || 0} | Floor: ${bp.floor_level || 'N/A'}`
+        });
+      }
+
+      // Store bathroom accessories
+      for (const ba of parsed.bathroom_accessories || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: 'bathroom_accessory',
+          description: `${ba.item_type || 'Accessory'} - ${ba.manufacturer || ''} ${ba.model || ''}`,
+          quantity: ba.quantity || 1,
+          unit: 'EA',
+          room_name: ba.room_name,
+          material_spec: ba.material,
+          dimensions: JSON.stringify({
+            item_type: ba.item_type,
+            manufacturer: ba.manufacturer,
+            model: ba.model,
+            material: ba.material,
+            finish: ba.finish,
+            ada_compliant: ba.ada_compliant
+          }),
+          notes: `Type: ${ba.item_type || 'N/A'} | Mfr: ${ba.manufacturer || 'TBD'} | Model: ${ba.model || 'N/A'} | Material: ${ba.material || 'N/A'} | Finish: ${ba.finish || 'N/A'} | ADA: ${ba.ada_compliant ? 'Yes' : 'No'} | Floor: ${ba.floor_level || 'N/A'}`
+        });
+      }
+
+      // Store insulation from new structure
+      for (const ins of parsed.insulation || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: ins.purpose === 'sound' ? 'sound_insulation' : ins.purpose === 'fire' ? 'fire_insulation' : 'thermal_insulation',
+          description: `${ins.type || 'Insulation'} R-${ins.r_value || 'TBD'} - ${ins.location || ''}`,
+          quantity: 1,
+          unit: 'EA',
+          room_name: ins.location,
+          material_spec: ins.type,
+          notes: `Location: ${ins.location || 'N/A'} | Type: ${ins.type || 'TBD'} | R-Value: ${ins.r_value || 'TBD'} | Thickness: ${ins.thickness || 'TBD'} | Purpose: ${ins.purpose || 'thermal'} | Wall Types: ${ins.wall_types?.join(', ') || 'N/A'} | ${ins.notes || ''}`
+        });
+      }
+
+      // Store structural hardware (Simpson, etc.) with seismic flag
+      for (const hw of parsed.structural_hardware || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: hw.is_seismic ? 'seismic_hardware' : 'structural_hardware',
+          description: hw.item,
+          quantity: hw.quantity || 1,
+          unit: 'EA',
+          room_name: hw.location,
+          notes: `${hw.manufacturer || 'Simpson Strong-Tie'} | ${hw.is_seismic ? '[SEISMIC] ' : ''}${hw.notes || ''}`
+        });
+      }
+
+      // Store seismic requirements
+      for (const seismic of parsed.seismic_requirements || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: 'seismic_requirement',
+          description: seismic.description,
+          quantity: 1,
+          unit: 'EA',
+          notes: `Type: ${seismic.requirement_type || 'general'} | Applies to: ${seismic.applies_to || 'both'} | Category: ${seismic.seismic_category || 'TBD'} | ${seismic.notes || ''}`
+        });
+      }
+
+      // Store insulation specifications
+      for (const ins of parsed.insulation_specs || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: 'insulation',
+          description: `${ins.type || 'Insulation'} R-${ins.r_value || 'TBD'}`,
+          quantity: 1,
+          unit: 'EA',
+          room_name: ins.location,
+          notes: `Location: ${ins.location || 'N/A'} | Type: ${ins.type || 'TBD'} | R-Value: ${ins.r_value || 'TBD'} | Thickness: ${ins.thickness || 'TBD'} | Facing: ${ins.facing || 'N/A'} | ${ins.notes || ''}`
+        });
+      }
+
+      // Store beams and headers
+      for (const beam of parsed.beams_headers || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: beam.type || 'beam',
+          description: beam.size,
+          quantity: beam.length_ft || 1,
+          unit: beam.length_ft ? 'LF' : 'EA',
+          linear_footage: beam.length_ft,
+          room_name: beam.location,
+          notes: `Type: ${beam.type || 'beam'}`
+        });
+      }
+
+      // Store soffits
+      for (const soffit of parsed.soffits || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: 'soffit',
+          quantity: soffit.length_ft || 1,
+          unit: 'LF',
+          linear_footage: soffit.length_ft,
+          room_name: soffit.location,
+          dimensions: JSON.stringify({
+            width_inches: soffit.width_inches,
+            depth_inches: soffit.depth_inches,
+            length_ft: soffit.length_ft
+          }),
+          notes: `${soffit.width_inches}"W x ${soffit.depth_inches}"D | Framing: ${soffit.framing || 'TBD'}`
+        });
+      }
+
+      // Store deck heights
+      for (const dh of parsed.deck_heights || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: 'deck_height',
+          description: `${dh.floor_level} - ${dh.height_ft_in}`,
+          quantity: 1,
+          unit: 'EA',
+          room_name: dh.area,
+          wall_height: parseFloat(dh.height_ft_in?.replace(/[^\d.]/g, '')) || null,
+          notes: `Floor: ${dh.floor_level} | Height: ${dh.height_ft_in} | Area: ${dh.area || 'General'}`
+        });
+      }
+
+      // Store general notes
+      for (const note of parsed.general_notes || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: 'general_note',
+          description: note.note,
+          quantity: 1,
+          unit: 'EA',
+          notes: `Category: ${note.category || 'other'} | Applies to: ${note.applies_to || 'All'}`
+        });
+      }
+
+      // Store UL assemblies with wall and ceiling references
+      for (const ul of parsed.ul_assemblies || []) {
+        items.push({
+          plan_id: planId,
+          page_number: pageNumber || 1,
+          item_type: 'ul_assembly',
+          description: `${ul.ul_number} - ${ul.description}`,
+          quantity: 1,
+          unit: 'EA',
+          notes: `Fire Rating: ${ul.fire_rating} | Type: ${ul.assembly_type || 'wall'} | Wall Types: ${ul.wall_types_using?.join(', ') || 'N/A'} | Ceiling Types: ${ul.ceiling_types_using?.join(', ') || 'N/A'}`
         });
       }
 
@@ -565,14 +1005,40 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
       }
 
 
+      // Build summary of what was found
+      const summary = {
+        walls: parsed.walls?.length || 0,
+        wallTypes: parsed.wall_types_legend?.length || 0,
+        rooms: parsed.rooms?.length || 0,
+        ceilings: parsed.ceilings?.length || 0,
+        ceilingTypes: parsed.ceiling_types_legend?.length || 0,
+        doors: parsed.doors?.length || 0,
+        doorHardwareSets: parsed.door_hardware_sets?.length || 0,
+        windows: parsed.windows?.length || 0,
+        millwork: parsed.millwork?.length || 0,
+        casework: parsed.casework?.length || 0,
+        bathroomPartitions: parsed.bathroom_partitions?.length || 0,
+        bathroomAccessories: parsed.bathroom_accessories?.length || 0,
+        insulation: (parsed.insulation?.length || 0) + (parsed.insulation_specs?.length || 0),
+        hardware: parsed.structural_hardware?.length || 0,
+        seismicItems: parsed.seismic_requirements?.length || 0,
+        beams: parsed.beams_headers?.length || 0,
+        soffits: parsed.soffits?.length || 0,
+        deckHeights: parsed.deck_heights?.length || 0,
+        notes: parsed.general_notes?.length || 0,
+        ulAssemblies: parsed.ul_assemblies?.length || 0
+      };
+
       return json({
         success: true,
+        sheet_type: parsed.sheet_type || 'Unknown',
+        drawing_info: parsed.drawing_info || {},
         extracted: parsed,
         itemsStored: items.length,
-        wallTypesFound: parsed.wall_types_legend?.length || 0,
+        summary,
         wallTypeTotals: parsed.wall_type_totals || [],
         clarificationsNeeded: clarifications,
-        message: `Successfully extracted and stored ${items.length} items. ${clarifications.length > 0 ? `${clarifications.length} questions need your input for accurate material calculations.` : ''}`
+        message: `Sheet: ${parsed.sheet_type || 'Unknown'} | Items: ${items.length} | Walls: ${summary.walls} | Rooms: ${summary.rooms} | Ceilings: ${summary.ceilings} | Doors: ${summary.doors} | Windows: ${summary.windows} | Millwork: ${summary.millwork} | Casework: ${summary.casework} | Insulation: ${summary.insulation}`
       });
     }
 
@@ -580,10 +1046,17 @@ Be thorough and precise. Construction estimating errors cost real money. Always 
   } catch (error: any) {
     console.error('❌ FUNCTION ERROR:', error);
     console.error('Stack:', error.stack);
-    return json({ 
-      error: error.message, 
-      error_code: 'function_error',
-      stack: error.stack 
-    }, 500);
+    // Always return with CORS headers to prevent CORS errors on failures
+    return new Response(
+      JSON.stringify({
+        error: error.message,
+        error_code: 'function_error',
+        stack: error.stack
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
   }
 });

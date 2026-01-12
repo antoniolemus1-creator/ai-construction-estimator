@@ -2,7 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { LogOut, Shield, Calculator, Layers, DollarSign, FileText, Upload, Brain, Smartphone, Video, Settings, User, GitCompare, FileCheck, Sparkles, GraduationCap, PlayCircle, History, Wrench } from 'lucide-react';
+import { LogOut, Shield, Calculator, Layers, DollarSign, FileText, Upload, Brain, Smartphone, Video, Settings, User, GitCompare, FileCheck, Sparkles, GraduationCap, PlayCircle, History, Wrench, FileSearch, Box } from 'lucide-react';
 import CrossReferenceMonitorWidget from '@/components/CrossReferenceMonitorWidget';
 
 import { useEffect, useState } from 'react';
@@ -32,6 +32,8 @@ export default function Dashboard() {
     { title: 'Estimation Calculator', desc: 'Basic construction cost calculator', icon: Calculator, path: '/estimation', color: 'amber' },
     { title: 'Enhanced Estimation', desc: 'Advanced calculator with AI features', icon: Layers, path: '/enhanced-estimation', color: 'amber' },
     { title: 'AI Plan Analysis', desc: 'AI-powered construction plan analysis', icon: Sparkles, path: '/ai-plan-analysis', color: 'blue' },
+    { title: 'Plan Viewer', desc: 'View plans with takeoff markup & measurements', icon: FileSearch, path: '/plan-viewer', color: 'cyan' },
+    { title: '3D Model Viewer', desc: 'View floor plans as interactive 3D models', icon: Box, path: '/3d-viewer', color: 'purple' },
     { title: 'Plan Revisions', desc: 'Compare plan versions & track changes', icon: GitCompare, path: '/plan-revisions', color: 'green' },
     { title: 'Change Orders', desc: 'Manage change orders & cost impacts', icon: FileCheck, path: '/change-orders', color: 'orange' },
     { title: 'Video Analysis', desc: 'Analyze construction training videos', icon: PlayCircle, path: '/video-analysis', color: 'purple' },

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Eye, Loader2, CheckCircle, Image as ImageIcon, AlertCircle, Sparkles, FileText, Shield } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, Loader2, CheckCircle, Image as ImageIcon, AlertCircle, Sparkles, FileText, Shield, PlayCircle, Download, ExternalLink } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -16,6 +17,9 @@ import { TextSearchPanel } from './TextSearchPanel';
 import { TextHighlightAnnotator } from './TextHighlightAnnotator';
 import { OCRExportPanel } from './OCRExportPanel';
 import { ExtractionConfig } from './DocumentTypeSelector';
+import { useBackgroundExtraction } from '@/hooks/useBackgroundExtraction';
+import { exportComprehensiveTakeoff, exportToQuickBid, exportToBuildertrend, exportToQuickBooks, TakeoffItem } from '@/lib/excelExport';
+import { useBackgroundJobs } from '@/contexts/BackgroundJobsContext';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Configure PDF.js worker
@@ -52,7 +56,16 @@ export function VisionExtractorPanel({ planId, onComplete, extractionConfig }: V
   const [showSetupDialog, setShowSetupDialog] = useState(false);
   const [analysisConfig, setAnalysisConfig] = useState<AnalysisConfig | null>(null);
   const [documentType, setDocumentType] = useState<'drawings' | 'specifications' | 'both'>('drawings');
+  const [planName, setPlanName] = useState<string>('');
+  const [exporting, setExporting] = useState(false);
+  const [exportType, setExportType] = useState<string>('');
   const { toast } = useToast();
+  const navigate = useNavigate();
+
+  // Background extraction
+  const { startExtraction, isExtracting, getJobByPlanId } = useBackgroundExtraction();
+  const backgroundJob = getJobByPlanId(planId);
+  const isBackgroundExtracting = isExtracting(planId);
 
   useEffect(() => {
     loadSettings();
@@ -60,9 +73,9 @@ export function VisionExtractorPanel({ planId, onComplete, extractionConfig }: V
     // If extraction config is provided, use it to set the analysis config
     if (extractionConfig) {
       const config: AnalysisConfig = {
-        drawingScale: extractionConfig.scale,
-        takeoffItems: extractionConfig.extractionOptions || [],
-        specDivisions: extractionConfig.csiDivisions || []
+        drawingScale: extractionConfig.scale || undefined,
+        takeoffItems: Array.isArray(extractionConfig.extractionOptions) ? extractionConfig.extractionOptions : [],
+        specDivisions: Array.isArray(extractionConfig.csiDivisions) ? extractionConfig.csiDivisions : []
       };
       setAnalysisConfig(config);
     }
@@ -73,15 +86,41 @@ export function VisionExtractorPanel({ planId, onComplete, extractionConfig }: V
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('ai_extraction_settings')
         .select('*')
         .eq('user_id', user.id)
         .single();
 
+      // Gracefully handle missing table or other errors (406, PGRST116)
+      if (error) {
+        // PGRST116 = no rows found, 406 = table might not exist
+        if (error.code !== 'PGRST116') {
+          console.warn('Could not load extraction settings, using defaults:', error.message);
+        }
+        // Use default settings
+        setSettings({
+          extraction_sensitivity: 0.7,
+          detail_level: 'medium',
+          auto_extract_doors: true,
+          auto_extract_windows: true,
+          auto_extract_walls: true,
+          auto_extract_fixtures: true,
+        });
+        return;
+      }
+
       setSettings(data);
     } catch (error) {
-      console.error('Error loading settings:', error);
+      console.warn('Error loading settings, using defaults:', error);
+      setSettings({
+        extraction_sensitivity: 0.7,
+        detail_level: 'medium',
+        auto_extract_doors: true,
+        auto_extract_windows: true,
+        auto_extract_walls: true,
+        auto_extract_fixtures: true,
+      });
     }
   };
 
@@ -89,38 +128,129 @@ export function VisionExtractorPanel({ planId, onComplete, extractionConfig }: V
     try {
       const { data } = await supabase
         .from('plans')
-        .select('document_type, has_specifications')
+        .select('document_type, has_specifications, file_name, name')
         .eq('id', planId)
         .single();
-      
+
       if (data) {
         setDocumentType(data.document_type || (data.has_specifications ? 'specifications' : 'drawings'));
+        setPlanName(data.name || data.file_name || 'Takeoff');
       }
     } catch (error) {
       console.error('Error loading plan info:', error);
     }
   };
 
+  // Generic export handler for all formats
+  const handleExport = async (format: 'excel' | 'quickbid' | 'buildertrend' | 'quickbooks') => {
+    setExporting(true);
+    setExportType(format);
+    try {
+      // Fetch all takeoff data for this plan
+      const { data: takeoffData, error } = await supabase
+        .from('takeoff_data')
+        .select('*')
+        .eq('plan_id', planId);
+
+      if (error) throw error;
+
+      if (!takeoffData || takeoffData.length === 0) {
+        toast({
+          title: 'No data to export',
+          description: 'No extraction data found for this plan. Run extraction first.',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      switch (format) {
+        case 'excel':
+          exportComprehensiveTakeoff(planName, takeoffData as TakeoffItem[]);
+          toast({ title: 'Excel export complete', description: `Exported ${takeoffData.length} items` });
+          break;
+        case 'quickbid':
+          exportToQuickBid(planName, takeoffData as TakeoffItem[]);
+          toast({ title: 'QuickBid export complete', description: `Exported ${takeoffData.length} items to QuickBid format` });
+          break;
+        case 'buildertrend':
+          exportToBuildertrend(planName, takeoffData as TakeoffItem[]);
+          toast({ title: 'Buildertrend export complete', description: `Exported ${takeoffData.length} items to Buildertrend format` });
+          break;
+        case 'quickbooks':
+          exportToQuickBooks(planName, takeoffData as TakeoffItem[]);
+          toast({ title: 'QuickBooks export complete', description: `Exported ${takeoffData.length} items to QuickBooks format` });
+          break;
+      }
+    } catch (error: unknown) {
+      console.error('Export error:', error);
+      toast({
+        title: 'Export failed',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive'
+      });
+    } finally {
+      setExporting(false);
+      setExportType('');
+    }
+  };
+
+  // Navigate to plan viewer for review
+  const handleViewInPlanViewer = () => {
+    navigate(`/plan-viewer/${planId}`);
+  };
+
+  // Auto-navigate to plan viewer when extraction completes
+  useEffect(() => {
+    if (backgroundJob?.status === 'completed') {
+      // Show toast and auto-navigate after a brief delay
+      toast({
+        title: 'Extraction Complete!',
+        description: 'Navigating to Plan Viewer for review...'
+      });
+      const timer = setTimeout(() => {
+        navigate(`/plan-viewer/${planId}`);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [backgroundJob?.status, planId, navigate, toast]);
+
 
 
 
   const convertPdfPageToImage = async (pdf: any, pageNum: number): Promise<string> => {
     const page = await pdf.getPage(pageNum);
-    const viewport = page.getViewport({ scale: 1.5 });
+
+    // Get the original viewport to calculate dimensions
+    const originalViewport = page.getViewport({ scale: 1.0 });
+
+    // Calculate scale to keep image under max dimensions (2048px max for API limits)
+    // This prevents base64 images from exceeding Supabase's request size limit
+    const MAX_DIMENSION = 2048;
+    const maxOriginalDim = Math.max(originalViewport.width, originalViewport.height);
+    const scale = maxOriginalDim > MAX_DIMENSION ? MAX_DIMENSION / maxOriginalDim : 1.0;
+
+    const viewport = page.getViewport({ scale });
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     canvas.height = viewport.height;
     canvas.width = viewport.width;
 
     await page.render({ canvasContext: context, viewport }).promise;
-    return canvas.toDataURL('image/jpeg', 0.8);
+
+    // Use lower quality to reduce payload size (0.6 is still good for OCR/vision)
+    return canvas.toDataURL('image/jpeg', 0.6);
   };
 
-  const handleStartExtraction = () => {
+  const handleStartExtraction = (runInBackground = false) => {
     // If we already have extraction config from the parent, use it directly
     if (extractionConfig && analysisConfig) {
-      handleExtract(analysisConfig);
+      if (runInBackground) {
+        handleBackgroundExtract(analysisConfig);
+      } else {
+        handleExtract(analysisConfig);
+      }
     } else {
+      // For now, start setup dialog. Could add background option here too.
       setShowSetupDialog(true);
     }
   };
@@ -128,6 +258,22 @@ export function VisionExtractorPanel({ planId, onComplete, extractionConfig }: V
   const handleConfigSubmit = (config: AnalysisConfig) => {
     setAnalysisConfig(config);
     handleExtract(config);
+  };
+
+  const handleBackgroundExtract = async (config?: AnalysisConfig) => {
+    const jobId = await startExtraction(
+      planId,
+      planName || 'Plan',
+      documentType,
+      config || analysisConfig || undefined
+    );
+
+    if (jobId) {
+      toast({
+        title: 'Background Extraction Started',
+        description: 'You can navigate away - extraction will continue in the background.',
+      });
+    }
   };
 
   const handleExtract = async (config?: AnalysisConfig) => {
@@ -270,32 +416,50 @@ export function VisionExtractorPanel({ planId, onComplete, extractionConfig }: V
           }
         } else {
           // Vision extraction for drawings
-          const { data, error } = await supabase.functions.invoke('analyze-construction-plans', {
-            body: {
-              planId,
-              action: 'extract_with_vision',
-              imageUrl: imageDataUrl,
-              pageNumber: i,
-              analysisConfig: config || analysisConfig
-            }
-          });
+          // Sanitize analysisConfig to ensure arrays are properly formatted
+          const configToUse = config || analysisConfig;
+          const safeConfig = configToUse ? {
+            drawingScale: configToUse.drawingScale || undefined,
+            takeoffItems: Array.isArray(configToUse.takeoffItems) ? configToUse.takeoffItems : [],
+            specDivisions: Array.isArray(configToUse.specDivisions) ? configToUse.specDivisions : [],
+          } : undefined;
 
-          if (error) {
-            setThumbnails(prev => prev.map(t => 
+          try {
+            const { data, error } = await supabase.functions.invoke('analyze-construction-plans', {
+              body: {
+                planId,
+                action: 'extract_with_vision',
+                imageUrl: imageDataUrl,
+                pageNumber: i,
+                analysisConfig: safeConfig
+              }
+            });
+
+            if (error) {
+              console.error(`Page ${i} error:`, error);
+              setThumbnails(prev => prev.map(t =>
+                t.pageNumber === i ? { ...t, status: 'error' } : t
+              ));
+              toast({ title: `Page ${i} extraction failed`, description: error.message, variant: 'destructive' });
+              continue;
+            }
+
+            if (data) {
+              setThumbnails(prev => prev.map(t =>
+                t.pageNumber === i ? { ...t, status: 'complete' } : t
+              ));
+
+              const itemsFound = data.itemsStored || 0;
+              itemsExtracted += itemsFound;
+              setTotalItems(itemsExtracted);
+            }
+          } catch (pageError) {
+            console.error(`Page ${i} exception:`, pageError);
+            setThumbnails(prev => prev.map(t =>
               t.pageNumber === i ? { ...t, status: 'error' } : t
             ));
-            toast({ title: `Page ${i} extraction failed`, description: error.message, variant: 'destructive' });
+            toast({ title: `Page ${i} failed`, description: 'Request timed out or failed', variant: 'destructive' });
             continue;
-          }
-
-          if (data) {
-            setThumbnails(prev => prev.map(t => 
-              t.pageNumber === i ? { ...t, status: 'complete' } : t
-            ));
-            
-            const itemsFound = data.itemsStored || 0;
-            itemsExtracted += itemsFound;
-            setTotalItems(itemsExtracted);
           }
         }
 
@@ -378,20 +542,6 @@ export function VisionExtractorPanel({ planId, onComplete, extractionConfig }: V
 
 
   const [ocrTextId, setOcrTextId] = useState<string>('');
-  const [planName, setPlanName] = useState<string>('');
-
-  useEffect(() => {
-    loadPlanName();
-  }, [planId]);
-
-  const loadPlanName = async () => {
-    const { data } = await supabase
-      .from('plans')
-      .select('name')
-      .eq('id', planId)
-      .single();
-    if (data) setPlanName(data.name);
-  };
 
   return (
     <>
@@ -414,22 +564,143 @@ export function VisionExtractorPanel({ planId, onComplete, extractionConfig }: V
             </p>
 
             <div className="flex gap-2 mb-4">
-              <Button onClick={handleStartExtraction} disabled={extracting} className="flex-1">
+              <Button
+                onClick={() => handleStartExtraction(false)}
+                disabled={extracting || isBackgroundExtracting}
+                className="flex-1"
+              >
                 {extracting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
                 Extract with AI Vision
               </Button>
 
-              {currentImageUrl && (
-                <Button 
-                  onClick={() => setShowDynamicSchema(!showDynamicSchema)} 
-                  variant="outline"
-                  className="flex-1"
-                >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Dynamic Schema
-                </Button>
-              )}
+              <Button
+                onClick={() => handleStartExtraction(true)}
+                disabled={extracting || isBackgroundExtracting}
+                variant="outline"
+                className="flex-1"
+                title="Run in background - you can navigate away"
+              >
+                <PlayCircle className="w-4 h-4 mr-2" />
+                Run in Background
+              </Button>
             </div>
+
+            {/* Show background job status */}
+            {isBackgroundExtracting && backgroundJob && (
+              <Alert className="mb-4">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p className="font-medium">Extraction running in background</p>
+                    <p className="text-sm text-muted-foreground">{backgroundJob.message}</p>
+                    <Progress value={backgroundJob.progress} className="h-2" />
+                    <p className="text-xs text-muted-foreground">
+                      Page {backgroundJob.currentPage} of {backgroundJob.totalPages} -
+                      You can navigate away, extraction will continue.
+                    </p>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Show completed background job */}
+            {backgroundJob?.status === 'completed' && (
+              <Alert className="mb-4 border-green-500 bg-green-50">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Background extraction complete!</p>
+                        <p className="text-sm">
+                          {backgroundJob.results?.itemsExtracted || 0} items extracted from {backgroundJob.results?.pagesProcessed || 0} pages
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={handleViewInPlanViewer}
+                        className="ml-4 bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Review in Plan Viewer
+                      </Button>
+                    </div>
+
+                    {/* Export buttons row */}
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-green-200">
+                      <span className="text-xs text-green-700 w-full mb-1">Export takeoff data to:</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleExport('excel')}
+                        disabled={exporting}
+                        className="border-green-600 text-green-700 hover:bg-green-100"
+                      >
+                        {exporting && exportType === 'excel' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
+                        Excel
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleExport('quickbid')}
+                        disabled={exporting}
+                        className="border-blue-600 text-blue-700 hover:bg-blue-100"
+                      >
+                        {exporting && exportType === 'quickbid' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
+                        QuickBid
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleExport('buildertrend')}
+                        disabled={exporting}
+                        className="border-orange-600 text-orange-700 hover:bg-orange-100"
+                      >
+                        {exporting && exportType === 'buildertrend' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
+                        Buildertrend
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleExport('quickbooks')}
+                        disabled={exporting}
+                        className="border-purple-600 text-purple-700 hover:bg-purple-100"
+                      >
+                        {exporting && exportType === 'quickbooks' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
+                        QuickBooks
+                      </Button>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Export buttons when there's existing data (not during extraction) */}
+            {!extracting && !isBackgroundExtracting && backgroundJob?.status !== 'completed' && (
+              <div className="flex flex-wrap gap-2 mb-4 p-3 bg-gray-50 rounded-lg">
+                <span className="text-xs text-muted-foreground w-full mb-1">Export options:</span>
+                <Button size="sm" variant="outline" onClick={() => handleExport('excel')} disabled={exporting}>
+                  {exporting && exportType === 'excel' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
+                  Excel
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleExport('quickbid')} disabled={exporting}>
+                  {exporting && exportType === 'quickbid' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
+                  QuickBid
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleExport('buildertrend')} disabled={exporting}>
+                  {exporting && exportType === 'buildertrend' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
+                  Buildertrend
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleExport('quickbooks')} disabled={exporting}>
+                  {exporting && exportType === 'quickbooks' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
+                  QuickBooks
+                </Button>
+                <Button size="sm" variant="default" onClick={handleViewInPlanViewer} className="ml-auto">
+                  <ExternalLink className="w-3 h-3 mr-1" />
+                  View Plan
+                </Button>
+              </div>
+            )}
 
             {extracting && (
               <div className="space-y-3">

@@ -439,22 +439,64 @@ Assign a confidence score to EVERY extracted item:
 - 30-49 (Low): Significant assumptions made, info incomplete/unclear, needs verification
 - 0-29 (Very Low): Educated guess only, contradictory info, recommend RFI
 
-=== COORDINATE EXTRACTION (CRITICAL - REQUIRED FOR ALL ITEMS) ===
-YOU MUST EXTRACT COORDINATES FOR EVERY WALL, DOOR, AND WINDOW. DO NOT SKIP THIS.
+=== VISUAL MARKUP REQUIREMENT (MANDATORY) ===
+**CRITICAL**: You MUST visually analyze the drawing and extract precise coordinates for EVERY item.
+These coordinates will be used to draw markup overlays showing what you extracted.
 
-Coordinate System: 0-100 scale where (0,0) is top-left corner, (100,100) is bottom-right
-- Walls: Trace the wall line. Provide start_x, start_y, end_x, end_y
-- Doors: Locate door symbol center. Provide x, y
-- Windows: Locate window symbol center. Provide x, y
+**Your extraction is INCOMPLETE and INVALID without coordinates.**
 
-Example wall on left side of drawing at 20% from top to 60% down:
-"coordinates": {"start_x": 10, "start_y": 20, "end_x": 10, "end_y": 60}
+Coordinate System: 0-100 scale representing percentage of drawing dimensions
+- (0, 0) = Top-left corner of drawing
+- (100, 100) = Bottom-right corner of drawing
+- (50, 50) = Center of drawing
 
-Example door in upper-right quadrant:
-"coordinates": {"x": 75, "y": 25}
+**REQUIRED COORDINATES:**
 
-IF YOU CANNOT DETERMINE EXACT POSITIONS: Make best estimate based on visual layout.
-MISSING COORDINATES = EXTRACTION FAILURE. Always include coordinates.
+WALLS - Trace each wall line from start to end:
+{
+  "coordinates": {
+    "start_x": <number 0-100>,
+    "start_y": <number 0-100>,
+    "end_x": <number 0-100>,
+    "end_y": <number 0-100>
+  }
+}
+
+DOORS - Locate door swing/symbol center point:
+{
+  "coordinates": {
+    "x": <number 0-100>,
+    "y": <number 0-100>
+  }
+}
+
+WINDOWS - Locate window symbol center point:
+{
+  "coordinates": {
+    "x": <number 0-100>,
+    "y": <number 0-100>
+  }
+}
+
+**EXAMPLES:**
+Wall along left edge from top to middle: {"start_x": 5, "start_y": 10, "end_x": 5, "end_y": 50}
+Horizontal wall across center: {"start_x": 20, "start_y": 50, "end_x": 80, "end_y": 50}
+Door in upper-right room: {"x": 75, "y": 20}
+Window on bottom wall: {"x": 50, "y": 90}
+
+**VALIDATION RULES:**
+1. EVERY wall MUST have start_x, start_y, end_x, end_y
+2. EVERY door MUST have x, y
+3. EVERY window MUST have x, y
+4. All coordinates MUST be between 0-100
+5. If you cannot see the item clearly, make your best visual estimate
+
+**REJECTION CRITERIA:**
+- Missing coordinates = REJECTED
+- null/undefined coordinates = REJECTED
+- Coordinates outside 0-100 = REJECTED
+
+Without coordinates, the user cannot verify your extraction is correct.
 
 === WALL TYPE NOTATION ===
 Parse wall type legends to extract:
@@ -550,6 +592,37 @@ Be thorough. Missing items cost money. Always respond with valid JSON with confi
 
       // Extract data from ALL sheet types - no longer skipping non-floor plans
       console.log(`📋 Page ${pageNumber} - Sheet type: ${parsed.sheet_type || 'Unknown'}. Extracting all relevant data.`);
+
+      // VALIDATE COORDINATES for critical items
+      let coordinateWarnings = 0;
+      const validateCoordinates = (items: any[], type: string, requireCoords: boolean) => {
+        if (!items || !Array.isArray(items)) return;
+        items.forEach((item, idx) => {
+          if (requireCoords && !item.coordinates) {
+            console.warn(`⚠️ ${type} #${idx + 1} missing coordinates: ${item.description || item.mark || 'Unknown'}`);
+            coordinateWarnings++;
+          } else if (item.coordinates) {
+            const c = item.coordinates;
+            if (type === 'wall' && (!c.start_x || !c.start_y || !c.end_x || !c.end_y)) {
+              console.warn(`⚠️ Wall #${idx + 1} has incomplete coordinates`);
+              coordinateWarnings++;
+            } else if ((type === 'door' || type === 'window') && (!c.x || !c.y)) {
+              console.warn(`⚠️ ${type} #${idx + 1} has incomplete coordinates`);
+              coordinateWarnings++;
+            }
+          }
+        });
+      };
+
+      validateCoordinates(parsed.walls, 'wall', true);
+      validateCoordinates(parsed.doors, 'door', true);
+      validateCoordinates(parsed.windows, 'window', true);
+
+      if (coordinateWarnings > 0) {
+        console.warn(`⚠️ Total coordinate warnings: ${coordinateWarnings} items missing or incomplete coordinates`);
+      } else {
+        console.log('✅ All critical items have coordinates');
+      }
 
       const items = [];
 

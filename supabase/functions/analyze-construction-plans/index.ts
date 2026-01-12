@@ -401,6 +401,7 @@ Return JSON:
         body: JSON.stringify({
           model: 'gpt-4o',
           response_format: { type: 'json_object' },
+          max_tokens: 16000,
           messages: [
             {
               role: 'system',
@@ -482,20 +483,43 @@ Be thorough. Missing items cost money. Always respond with valid JSON with confi
                 { type: 'text', text: extractionPrompt }
               ]
             }
-          ],
-          max_tokens: 4000
+          ]
         })
       });
       
       if (!res.ok) {
         const body = await res.text().catch(() => '');
-        console.error('OpenAI error:', res.status, body.slice(0, 200));
-        return json({ error_code: 'openai_http_error', status: res.status, details: body.slice(0, 200) }, 502);
+        console.error('OpenAI error:', res.status, body.slice(0, 500));
+
+        // Try to parse error details
+        let errorDetails = body.slice(0, 200);
+        try {
+          const errorJson = JSON.parse(body);
+          errorDetails = errorJson.error?.message || errorJson.message || body.slice(0, 200);
+          console.error('Parsed error:', errorJson);
+        } catch (e) {
+          console.error('Could not parse error body');
+        }
+
+        return json({
+          error_code: 'openai_http_error',
+          status: res.status,
+          details: errorDetails,
+          page: pageNumber
+        }, 502);
       }
       
       const payload = await res.json();
       const content = payload.choices?.[0]?.message?.content ?? '';
-      
+      const finishReason = payload.choices?.[0]?.finish_reason;
+
+      console.log('OpenAI finish_reason:', finishReason);
+      console.log('OpenAI usage:', payload.usage);
+
+      if (finishReason === 'length') {
+        console.warn('⚠️ Response truncated due to max_tokens limit');
+      }
+
       let parsed: any;
       try {
         parsed = parseJsonSafe(content);
@@ -503,10 +527,13 @@ Be thorough. Missing items cost money. Always respond with valid JSON with confi
       } catch (e: any) {
         console.error('❌ JSON parse error:', e.message);
         console.error('Content sample:', content.slice(0, 300));
+        console.error('Finish reason:', finishReason);
         return json({
           error_code: 'invalid_json_from_model',
           details: e.message,
-          sample: content.slice(0, 200)
+          sample: content.slice(0, 200),
+          finish_reason: finishReason,
+          page: pageNumber
         }, 502);
       }
 
@@ -1011,6 +1038,20 @@ Be thorough. Missing items cost money. Always respond with valid JSON with confi
       console.log(`📝 Attempting to insert ${items.length} items`);
 
       if (items.length > 0) {
+        // Helper to sanitize numeric values
+        const sanitizeNumeric = (value: any): number | null => {
+          if (value === null || value === undefined) return null;
+          if (typeof value === 'number' && !isNaN(value) && isFinite(value)) return value;
+          if (typeof value === 'string') {
+            const str = value.trim().toLowerCase();
+            // Check for non-numeric text
+            if (str === '' || str === 'n/a' || str === 'tbd' || str === 'varies' || str === 'vary' || str === 'na') return null;
+            const num = parseFloat(value);
+            return isNaN(num) || !isFinite(num) ? null : num;
+          }
+          return null;
+        };
+
         // Sanitize items to only include allowed columns
         const allowedCols = new Set([
           'plan_id', 'page_number', 'item_type', 'description', 'quantity', 'unit', 'dimensions', 'confidence_score',
@@ -1021,10 +1062,36 @@ Be thorough. Missing items cost money. Always respond with valid JSON with confi
           'room_number', 'room_area', 'material_spec', 'raw_dimensions', 'calculated_from_scale', 'scale_factor', 'plan_upload_id',
           'needs_clarification', 'clarification_notes', 'wall_classification', 'cross_reference_notes', 'spec_reference', 'door_type'
         ]);
-        
-        const sanitized = items.map((obj: any) => 
-          Object.fromEntries(Object.entries(obj).filter(([k]) => allowedCols.has(k)))
-        );
+
+        const sanitized = items.map((obj: any) => {
+          const filtered = Object.fromEntries(Object.entries(obj).filter(([k]) => allowedCols.has(k)));
+
+          // Sanitize numeric fields
+          if (filtered.confidence_score !== undefined) {
+            const score = sanitizeNumeric(filtered.confidence_score);
+            filtered.confidence_score = score !== null ? Math.max(0, Math.min(100, score)) : null;
+          }
+          if (filtered.quantity !== undefined) {
+            filtered.quantity = sanitizeNumeric(filtered.quantity);
+          }
+          if (filtered.linear_footage !== undefined) {
+            filtered.linear_footage = sanitizeNumeric(filtered.linear_footage);
+          }
+          if (filtered.wall_height !== undefined) {
+            filtered.wall_height = sanitizeNumeric(filtered.wall_height);
+          }
+          if (filtered.ceiling_area_sqft !== undefined) {
+            filtered.ceiling_area_sqft = sanitizeNumeric(filtered.ceiling_area_sqft);
+          }
+          if (filtered.room_area !== undefined) {
+            filtered.room_area = sanitizeNumeric(filtered.room_area);
+          }
+          if (filtered.scale_factor !== undefined) {
+            filtered.scale_factor = sanitizeNumeric(filtered.scale_factor);
+          }
+
+          return filtered;
+        });
         
         console.log(`📝 Sanitized ${sanitized.length} items for insert`);
         

@@ -35,9 +35,9 @@ export function useBackgroundExtraction() {
     // Get the original viewport to calculate dimensions
     const originalViewport = page.getViewport({ scale: 1.0 });
 
-    // Reduce max dimension to 1536px to keep payload smaller (was 2048)
+    // Reduce max dimension to 1280px to keep payload smaller (was 1536)
     // OpenAI Vision works well at this resolution and significantly reduces payload size
-    const MAX_DIMENSION = 1536;
+    const MAX_DIMENSION = 1280;
     const maxOriginalDim = Math.max(originalViewport.width, originalViewport.height);
     const scale = maxOriginalDim > MAX_DIMENSION ? MAX_DIMENSION / maxOriginalDim : 1.0;
 
@@ -49,8 +49,8 @@ export function useBackgroundExtraction() {
 
     await page.render({ canvasContext: context!, viewport }).promise;
 
-    // Use 0.5 quality to reduce payload size further (still good for OCR/vision)
-    return canvas.toDataURL('image/jpeg', 0.5);
+    // Use 0.4 quality to reduce payload size further (still good for OCR/vision)
+    return canvas.toDataURL('image/jpeg', 0.4);
   };
 
   // Helper to add delay between API calls to avoid rate limiting

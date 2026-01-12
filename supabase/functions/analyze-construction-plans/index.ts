@@ -439,11 +439,22 @@ Assign a confidence score to EVERY extracted item:
 - 30-49 (Low): Significant assumptions made, info incomplete/unclear, needs verification
 - 0-29 (Very Low): Educated guess only, contradictory info, recommend RFI
 
-=== COORDINATE EXTRACTION (CRITICAL) ===
-For EVERY wall, door, and window, you MUST extract coordinates relative to the drawing:
-- Walls: start_x, start_y, end_x, end_y (0-100 scale where 0,0 is top-left)
-- Doors/Windows: x, y center position (0-100 scale)
-These coordinates are used for visual markup - extraction without coordinates is incomplete.
+=== COORDINATE EXTRACTION (CRITICAL - REQUIRED FOR ALL ITEMS) ===
+YOU MUST EXTRACT COORDINATES FOR EVERY WALL, DOOR, AND WINDOW. DO NOT SKIP THIS.
+
+Coordinate System: 0-100 scale where (0,0) is top-left corner, (100,100) is bottom-right
+- Walls: Trace the wall line. Provide start_x, start_y, end_x, end_y
+- Doors: Locate door symbol center. Provide x, y
+- Windows: Locate window symbol center. Provide x, y
+
+Example wall on left side of drawing at 20% from top to 60% down:
+"coordinates": {"start_x": 10, "start_y": 20, "end_x": 10, "end_y": 60}
+
+Example door in upper-right quadrant:
+"coordinates": {"x": 75, "y": 25}
+
+IF YOU CANNOT DETERMINE EXACT POSITIONS: Make best estimate based on visual layout.
+MISSING COORDINATES = EXTRACTION FAILURE. Always include coordinates.
 
 === WALL TYPE NOTATION ===
 Parse wall type legends to extract:
@@ -547,6 +558,7 @@ Be thorough. Missing items cost money. Always respond with valid JSON with confi
       const drawingInfo = parsed.drawing_info || {};
       items.push({
         plan_id: planId,
+        user_id: user.id,
         page_number: pageNumber || 1,
         item_type: 'sheet_info',
         description: `${parsed.sheet_type || 'Unknown Sheet'} - ${drawingInfo.title || drawingInfo.sheet_number || `Page ${pageNumber}`}`,
@@ -1054,7 +1066,7 @@ Be thorough. Missing items cost money. Always respond with valid JSON with confi
 
         // Sanitize items to only include allowed columns
         const allowedCols = new Set([
-          'plan_id', 'page_number', 'item_type', 'description', 'quantity', 'unit', 'dimensions', 'confidence_score',
+          'plan_id', 'user_id', 'page_number', 'item_type', 'description', 'quantity', 'unit', 'dimensions', 'confidence_score',
           'room_name', 'wall_type', 'ceiling_type', 'linear_footage', 'wall_height', 'ceiling_area_sqft',
           'door_material', 'window_material', 'notes', 'specifications', 'door_size', 'hardware_package', 'hardware_components',
           'window_size', 'ceiling_height', 'wall_materials', 'ceiling_type_detail', 'door_schedule_reference', 'window_schedule_reference',
@@ -1064,6 +1076,11 @@ Be thorough. Missing items cost money. Always respond with valid JSON with confi
         ]);
 
         const sanitized = items.map((obj: any) => {
+          // Add user_id to all items if not present
+          if (!obj.user_id) {
+            obj.user_id = user.id;
+          }
+
           const filtered = Object.fromEntries(Object.entries(obj).filter(([k]) => allowedCols.has(k)));
 
           // Sanitize numeric fields

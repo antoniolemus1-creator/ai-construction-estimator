@@ -1159,7 +1159,13 @@ Be thorough. Missing items cost money. Always respond with valid JSON with confi
           // Sanitize numeric fields
           if (filtered.confidence_score !== undefined) {
             const score = sanitizeNumeric(filtered.confidence_score);
-            filtered.confidence_score = score !== null ? Math.max(0, Math.min(100, score)) : null;
+            // Convert 0-100 scale to 0-1 scale for database (NUMERIC(3,2) constraint)
+            if (score !== null) {
+              const clamped = Math.max(0, Math.min(100, score));
+              filtered.confidence_score = clamped / 100; // Store as 0.00 to 1.00
+            } else {
+              filtered.confidence_score = null;
+            }
           }
           if (filtered.quantity !== undefined) {
             filtered.quantity = sanitizeNumeric(filtered.quantity);
